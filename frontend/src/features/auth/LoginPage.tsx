@@ -26,7 +26,7 @@ export function LoginPage() {
     formState: { isSubmitting, errors },
   } = useForm<Form>({
     resolver: zodResolver(schema),
-    defaultValues: { email: 'admin@expert.sarlu', password: 'Expert2026!' },
+    defaultValues: { email: '', password: '' },
   });
 
   const onSubmit = handleSubmit(async (values) => {
@@ -44,14 +44,10 @@ export function LoginPage() {
       navigate('/');
     } catch (err: unknown) {
       const ax = err as {
-        code?: string;
-        message?: string;
         response?: { status?: number; data?: { message?: string } };
       };
       if (!ax.response) {
-        toast.error(
-          `API injoignable (${import.meta.env.VITE_API_URL ?? 'http://localhost:3000/api'}). Démarrez le backend : pnpm dev:api`,
-        );
+        toast.error('Serveur injoignable. Réessayez dans un instant.');
         return;
       }
       if (ax.response.status === 401) {
@@ -101,9 +97,6 @@ export function LoginPage() {
           <Button type="submit" className="w-full" disabled={isSubmitting}>
             {isSubmitting ? 'Connexion…' : 'Se connecter'}
           </Button>
-          <p className="text-center text-[11px] text-muted break-all">
-            API : {(import.meta.env.VITE_API_URL as string) ?? 'http://localhost:3000/api'}
-          </p>
         </form>
       </div>
     </div>

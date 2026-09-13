@@ -45,7 +45,7 @@ export function ClientPortalPage() {
       const ax = err as { response?: { data?: { message?: string } }; message?: string };
       toast.error(
         ax.response?.data?.message ??
-          (ax.response ? 'Envoi refusé' : `API injoignable (${apiBase})`),
+          (ax.response ? 'Envoi refusé' : 'Serveur injoignable. Réessayez plus tard.'),
       );
     } finally {
       setLoading(false);

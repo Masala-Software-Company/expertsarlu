@@ -1,7 +1,9 @@
+import { useCallback, useState } from 'react';
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { useAuthStore } from '@/features/auth/auth-store';
 import { LoginPage } from '@/features/auth/LoginPage';
 import { AppShell } from '@/components/layout/AppShell';
+import { SplashIntro } from '@/components/SplashIntro';
 import { DashboardPage } from '@/features/dashboard/DashboardPage';
 import { DossiersPage } from '@/features/dossiers/DossiersPage';
 import { DossierDetailPage } from '@/features/dossiers/DossierDetailPage';
@@ -16,6 +18,8 @@ import { ClientPortalPage } from '@/features/client-portal/ClientPortalPage';
 import { VersionChecker } from '@/components/VersionChecker';
 import { CommandPalette } from '@/components/CommandPalette';
 
+const SPLASH_KEY = 'expert-splash-done';
+
 function PrivateRoute({ children }: { children: React.ReactNode }) {
   const token = useAuthStore((s) => s.accessToken);
   if (!token) return <Navigate to="/login" replace />;
@@ -23,6 +27,19 @@ function PrivateRoute({ children }: { children: React.ReactNode }) {
 }
 
 export default function App() {
+  const [splashDone, setSplashDone] = useState(
+    () => typeof sessionStorage !== 'undefined' && sessionStorage.getItem(SPLASH_KEY) === '1',
+  );
+
+  const finishSplash = useCallback(() => {
+    sessionStorage.setItem(SPLASH_KEY, '1');
+    setSplashDone(true);
+  }, []);
+
+  if (!splashDone) {
+    return <SplashIntro onDone={finishSplash} />;
+  }
+
   return (
     <>
       <VersionChecker />
