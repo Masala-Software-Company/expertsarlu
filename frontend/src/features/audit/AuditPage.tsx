@@ -11,35 +11,109 @@ type Log = {
   timestamp: string;
   action: string;
   tableCible: string;
-  recordId?: string;
+  recordId?: string | null;
+  nouvelleValeur?: {
+    path?: string;
+    numero?: string;
+    resultId?: string;
+  } | null;
   user?: { nom: string; email: string };
 };
 
+/** Libellés métier — jamais de jargon HTTP / code. */
 const ACTION_LABELS: Record<string, string> = {
   CREATE: 'Création',
   UPDATE: 'Modification',
   DELETE: 'Suppression',
-  VALIDATE: 'Validation',
+  VALIDATE: 'Validation du dossier',
   UNLOCK: 'Déverrouillage',
   UNLOCK_REQUEST: 'Demande de déverrouillage',
   UNLOCK_APPROVE: 'Déverrouillage approuvé',
   UNLOCK_REFUSE: 'Déverrouillage refusé',
-  UPDATE_TARIF: 'Mise à jour tarif',
-  UPLOAD_DOCUMENT: 'Ajout document',
-  DELETE_DOCUMENT: 'Suppression document',
+  UPDATE_TARIF: 'Mise à jour d’un tarif',
+  UPLOAD_DOCUMENT: 'Ajout d’un document',
+  DELETE_DOCUMENT: 'Suppression d’un document',
   LOGIN: 'Connexion',
-  RESTORE: 'Restauration',
+  RESTORE: 'Restauration depuis la corbeille',
+  HARD_DELETE: 'Suppression définitive',
+  STATUT_CHANGE: 'Changement de statut',
+  SUIVI_TOKEN: 'Lien de suivi patient généré',
+  POST_AUTO: 'Enregistrement',
+  PATCH_AUTO: 'Mise à jour',
+  PUT_AUTO: 'Mise à jour',
+  DELETE_AUTO: 'Suppression',
 };
 
 const TABLE_LABELS: Record<string, string> = {
   dossiers: 'Dossier',
+  dossier: 'Dossier',
   tarifs_base: 'Tarification',
-  documents_ged: 'Document GED',
-  users: 'Utilisateur',
+  tarification: 'Tarification',
+  documents_ged: 'Document',
+  ged: 'Documents',
+  users: 'Compte utilisateur',
   patients: 'Patient',
-  factures: 'Facture',
-  lignes_cotation: 'Cotation',
+  factures: 'Facture / devis',
+  facturation: 'Facturation',
+  lignes_cotation: 'Ligne de cotation',
+  cotation: 'Cotation',
+  demandes_deverrouillage: 'Demande de déverrouillage',
+  communications: 'Communication',
+  partenaires: 'Partenaire',
+  prospects: 'Prospect',
+  logistique: 'Protocole / logistique',
+  rendez_vous: 'Rendez-vous',
+  taches_logistique: 'Tâche protocole',
+  inbox: 'Message reçu',
+  inbox_messages: 'Message reçu',
+  notifications: 'Notification',
+  paiements: 'Paiement',
+  api: 'Activité système',
+  systeme: 'Système',
+  unknown: 'Élément',
 };
+
+function humanizeToken(raw: string) {
+  return raw
+    .replace(/^\/+|\/+$/g, '')
+    .replace(/[_-]+/g, ' ')
+    .replace(/\b\w/g, (c) => c.toUpperCase())
+    .trim();
+}
+
+function actionLabel(action: string) {
+  if (ACTION_LABELS[action]) return ACTION_LABELS[action];
+  if (ACTION_LABELS[action.toUpperCase()]) return ACTION_LABELS[action.toUpperCase()];
+  // Ex. "POST_AUTO" déjà couvert ; fallback soft
+  const soft = action
+    .replace(/_AUTO$/i, '')
+    .replaceAll('_', ' ')
+    .toLowerCase();
+  if (soft === 'post') return 'Enregistrement';
+  if (soft === 'patch' || soft === 'put') return 'Mise à jour';
+  if (soft === 'delete') return 'Suppression';
+  return humanizeToken(action);
+}
+
+function moduleFromPath(path?: string | null) {
+  if (!path) return null;
+  const clean = path.split('?')[0].replace(/^\/api\/?/, '').replace(/^\//, '');
+  return clean.split('/').filter(Boolean)[0] ?? null;
+}
+
+function elementLabel(log: Log) {
+  let key = log.tableCible;
+  if (!TABLE_LABELS[key] || key === 'api' || key === 'unknown') {
+    const fromPath = moduleFromPath(log.nouvelleValeur?.path);
+    if (fromPath && TABLE_LABELS[fromPath]) key = fromPath;
+  }
+  const base = TABLE_LABELS[key] ?? humanizeToken(key || 'élément');
+  const numero = log.nouvelleValeur?.numero;
+  if (numero && /^MED-/i.test(numero)) {
+    return `${base} ${numero}`;
+  }
+  return base;
+}
 
 export function AuditPage() {
   const [q, setQ] = useState('');
@@ -52,16 +126,13 @@ export function AuditPage() {
     const needle = q.trim().toLowerCase();
     if (!needle) return data;
     return data.filter((l) => {
-      const action = (ACTION_LABELS[l.action] ?? l.action).toLowerCase();
-      const table = (TABLE_LABELS[l.tableCible] ?? l.tableCible).toLowerCase();
+      const action = actionLabel(l.action).toLowerCase();
+      const element = elementLabel(l).toLowerCase();
       return (
         action.includes(needle) ||
-        table.includes(needle) ||
-        l.action.toLowerCase().includes(needle) ||
-        l.tableCible.toLowerCase().includes(needle) ||
+        element.includes(needle) ||
         (l.user?.nom ?? '').toLowerCase().includes(needle) ||
-        (l.user?.email ?? '').toLowerCase().includes(needle) ||
-        (l.recordId ?? '').toLowerCase().includes(needle)
+        (l.user?.email ?? '').toLowerCase().includes(needle)
       );
     });
   }, [data, q]);
@@ -78,7 +149,7 @@ export function AuditPage() {
         </div>
         <Input
           className="max-w-xs"
-          placeholder="Filtrer (utilisateur, action…)"
+          placeholder="Filtrer (collaborateur, action…)"
           value={q}
           onChange={(e) => setQ(e.target.value)}
         />
@@ -113,17 +184,10 @@ export function AuditPage() {
                       'bg-brand/10 text-brand',
                     )}
                   >
-                    {ACTION_LABELS[l.action] ?? l.action.replaceAll('_', ' ')}
+                    {actionLabel(l.action)}
                   </span>
                 </td>
-                <td className="px-4 py-3 text-muted">
-                  {TABLE_LABELS[l.tableCible] ?? l.tableCible}
-                  {l.recordId ? (
-                    <span className="ml-1 font-mono text-[11px] opacity-70">
-                      · {l.recordId.slice(0, 8)}
-                    </span>
-                  ) : null}
-                </td>
+                <td className="px-4 py-3 text-muted">{elementLabel(l)}</td>
               </tr>
             ))}
             {!isLoading && filtered.length === 0 && (

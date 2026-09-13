@@ -7,14 +7,35 @@ import {
 import { Observable, tap } from 'rxjs';
 import { AuditService } from './audit.service';
 
-const SENSITIVE = new Set([
+/** Modules métier à journaliser (segment d’URL après /api). */
+const MODULES = new Set([
   'dossiers',
   'cotation',
   'facturation',
   'tarification',
   'users',
   'ged',
+  'patients',
+  'prospects',
+  'partenaires',
+  'logistique',
+  'communications',
+  'inbox',
+  'notifications',
 ]);
+
+const METHOD_ACTION: Record<string, string> = {
+  POST: 'CREATE',
+  PATCH: 'UPDATE',
+  PUT: 'UPDATE',
+  DELETE: 'DELETE',
+};
+
+function moduleFromUrl(url: string): string {
+  const clean = url.split('?')[0].replace(/^\/api\/?/, '').replace(/^\//, '');
+  const segment = clean.split('/').filter(Boolean)[0] ?? 'systeme';
+  return segment;
+}
 
 @Injectable()
 export class AuditInterceptor implements NestInterceptor {
@@ -27,27 +48,34 @@ export class AuditInterceptor implements NestInterceptor {
       return next.handle();
     }
 
-    const path: string = req.route?.path ?? req.url ?? '';
-    const segment = path.split('/').filter(Boolean)[0] ?? 'unknown';
-    if (!SENSITIVE.has(segment) && !path.includes('dossiers')) {
+    const url: string = req.originalUrl ?? req.url ?? '';
+    const module = moduleFromUrl(url);
+    if (!MODULES.has(module)) {
       return next.handle();
     }
 
     const user = req.user;
     const started = Date.now();
+    const recordId =
+      req.params?.id ??
+      req.params?.dossierId ??
+      req.params?.factureId ??
+      undefined;
 
     return next.handle().pipe(
       tap({
         next: (result) => {
+          const resultObj = result as { id?: string; numero?: string } | null;
           void this.audit.log({
             userId: user?.id,
-            action: `${method}_AUTO`,
-            tableCible: segment,
-            recordId: req.params?.id,
+            action: METHOD_ACTION[method] ?? 'UPDATE',
+            tableCible: module,
+            recordId: recordId ?? resultObj?.id,
             nouvelleValeur: {
-              path: req.url,
+              path: url,
               durationMs: Date.now() - started,
-              resultId: (result as { id?: string })?.id,
+              numero: resultObj?.numero,
+              resultId: resultObj?.id,
             },
             ip: req.ip,
             userAgent: req.headers['user-agent'],
