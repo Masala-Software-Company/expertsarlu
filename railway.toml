@@ -1,12 +1,20 @@
-# Config Railway à la racine du monorepo
-# (si Root Directory reste vide, Railpack utilise ces commandes)
+# Force Docker builder — contourne Railpack monorepo
+# Watch Paths : rebuild auto seulement si backend (ou ce Dockerfile) change
 
 [build]
-builder = "RAILPACK"
-buildCommand = "pnpm install --no-frozen-lockfile && pnpm --filter @expert/backend build"
+builder = "DOCKERFILE"
+dockerfilePath = "Dockerfile"
+watchPatterns = [
+  "backend/**",
+  "Dockerfile",
+  "package.json",
+  "pnpm-lock.yaml",
+  "pnpm-workspace.yaml",
+  "railway.toml",
+  "railway.json"
+]
 
 [deploy]
-startCommand = "pnpm --filter @expert/backend start:prod"
 healthcheckPath = "/health"
 healthcheckTimeout = 120
 restartPolicyType = "ON_FAILURE"

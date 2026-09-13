@@ -3,6 +3,7 @@
   "private": true,
   "version": "1.0.0",
   "description": "eXpert SARLU — Bureau de Coordination Médicale Internationale",
+  "main": "backend/dist/main.js",
   "scripts": {
     "dev": "pnpm --parallel --filter @expert/backend --filter @expert/frontend dev",
     "dev:api": "pnpm --filter @expert/backend dev",
