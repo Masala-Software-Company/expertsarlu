@@ -38,9 +38,7 @@ export function ClientPortalPage() {
       if (photo) fd.append('photo', photo);
       if (passeport) fd.append('passeport', passeport);
 
-      const { data } = await axios.post(`${apiBase}/client/inscription`, fd, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-      });
+      const { data } = await axios.post(`${apiBase}/client/inscription`, fd);
       setDone({ numero: data.numero, message: data.message });
       toast.success(`Dossier ${data.numero} créé`);
     } catch (err: unknown) {

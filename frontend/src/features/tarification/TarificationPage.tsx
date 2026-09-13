@@ -1,88 +1,123 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
+import { useMemo, useState } from 'react';
+import { Check, Pencil } from 'lucide-react';
 import { api } from '@/lib/api';
-import { formatMoney } from '@/lib/utils';
+import { formatMoney, cn } from '@/lib/utils';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
-import { useState } from 'react';
 
-type Tarif = { id: string; cle: string; libelle: string; montant: string | number; unite?: string };
+type Tarif = {
+  id: string;
+  cle: string;
+  libelle: string;
+  montant: string | number;
+  unite?: string;
+};
 
 export function TarificationPage() {
   const qc = useQueryClient();
-  const { data = [] } = useQuery({
+  const { data = [], isLoading } = useQuery({
     queryKey: ['tarifs'],
     queryFn: async () => (await api.get<Tarif[]>('/tarification')).data,
   });
   const [drafts, setDrafts] = useState<Record<string, string>>({});
+  const [editing, setEditing] = useState<string | null>(null);
 
   const update = useMutation({
     mutationFn: async ({ cle, montant }: { cle: string; montant: number }) =>
       (await api.patch(`/tarification/${cle}`, { montant })).data,
-    onSuccess: () => {
+    onSuccess: (_d, vars) => {
       void qc.invalidateQueries({ queryKey: ['tarifs'] });
-      toast.success('Tarif mis à jour');
+      setEditing(null);
+      toast.success(`${vars.cle} mis à jour`);
     },
     onError: () => toast.error('Modification refusée'),
   });
 
+  const cards = useMemo(() => data, [data]);
+
   return (
-    <div className="space-y-5 max-w-3xl">
+    <div className="space-y-6 max-w-4xl">
       <div>
         <h1 className="text-3xl font-extrabold tracking-tight">Tarification</h1>
-        <p className="text-sm text-black/50">
-          Grille de prix de base — réservée au Super Admin. Les autres rôles voient uniquement
-          le résultat des calculs dans les devis.
+        <p className="mt-1 text-sm text-muted">
+          Grille de base utilisée pour calculer les devis. Réservée au Super Admin — les autres
+          rôles voient uniquement le résultat dans les dossiers.
         </p>
       </div>
-      <div className="overflow-hidden rounded-2xl border border-black/5 bg-white shadow-soft">
-        <table className="w-full text-sm">
-          <thead className="bg-canvas text-left text-xs uppercase text-black/40">
-            <tr>
-              <th className="px-4 py-3">Libellé</th>
-              <th className="px-4 py-3">Clé</th>
-              <th className="px-4 py-3">Montant (USD)</th>
-              <th className="px-4 py-3" />
-            </tr>
-          </thead>
-          <tbody>
-            {data.map((t) => (
-              <tr key={t.id} className="border-t border-black/5">
-                <td className="px-4 py-3 font-medium">
-                  {t.libelle}
-                  {t.unite && <span className="ml-1 text-black/40">/ {t.unite}</span>}
-                </td>
-                <td className="px-4 py-3 text-black/45 font-mono text-xs">{t.cle}</td>
-                <td className="px-4 py-3">
+
+      <div className="grid gap-4 sm:grid-cols-2">
+        {cards.map((t) => {
+          const isEdit = editing === t.cle;
+          const value = drafts[t.cle] ?? String(t.montant);
+          return (
+            <div
+              key={t.id}
+              className="rounded-2xl border border-[var(--border)] bg-surface p-5 shadow-soft"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <div className="font-semibold">{t.libelle}</div>
+                  <div className="mt-0.5 text-xs text-muted">
+                    {t.unite ? `Par ${t.unite}` : 'Forfait'}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  className="rounded-lg p-2 text-muted hover:bg-canvas hover:text-brand"
+                  onClick={() => {
+                    setEditing(isEdit ? null : t.cle);
+                    setDrafts((d) => ({ ...d, [t.cle]: String(t.montant) }));
+                  }}
+                  aria-label="Modifier"
+                >
+                  <Pencil className="h-4 w-4" />
+                </button>
+              </div>
+
+              {!isEdit ? (
+                <div className="mt-4 text-3xl font-extrabold tracking-tight text-brand">
+                  {formatMoney(Number(t.montant))}
+                </div>
+              ) : (
+                <div className="mt-4 flex items-center gap-2">
                   <Input
-                    className="w-28"
-                    value={drafts[t.cle] ?? String(t.montant)}
-                    onChange={(e) =>
-                      setDrafts((d) => ({ ...d, [t.cle]: e.target.value }))
-                    }
+                    className="max-w-[140px]"
+                    inputMode="decimal"
+                    value={value}
+                    onChange={(e) => setDrafts((d) => ({ ...d, [t.cle]: e.target.value }))}
                   />
-                </td>
-                <td className="px-4 py-3 text-right">
                   <Button
                     size="sm"
+                    disabled={update.isPending}
                     onClick={() =>
-                      update.mutate({
-                        cle: t.cle,
-                        montant: Number(drafts[t.cle] ?? t.montant),
-                      })
+                      update.mutate({ cle: t.cle, montant: Number(value) })
                     }
                   >
-                    Enregistrer
+                    <Check className="h-3.5 w-3.5" />
+                    Sauver
                   </Button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+                </div>
+              )}
+
+              <div
+                className={cn(
+                  'mt-3 inline-flex rounded-full bg-canvas px-2.5 py-1 font-mono text-[10px] text-muted',
+                )}
+              >
+                {t.cle}
+              </div>
+            </div>
+          );
+        })}
       </div>
-      <p className="text-xs text-black/40">
-        Exemple affiché : accompagnateur {formatMoney(350)} · navette {formatMoney(70)}
-      </p>
+
+      {!isLoading && cards.length === 0 && (
+        <div className="rounded-2xl border border-[var(--border)] bg-surface p-10 text-center text-muted">
+          Aucun tarif en base — lancez le seed Prisma.
+        </div>
+      )}
     </div>
   );
 }

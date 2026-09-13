@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { api } from '@/lib/api';
 import { useAuthStore } from '@/features/auth/auth-store';
-import { ROLE_LABELS, STATUT_LABELS, formatMoney } from '@/lib/utils';
+import { ROLE_LABELS, STATUT_LABELS, formatMoney, firstName } from '@/lib/utils';
 import { PatientAvatar } from '@/components/PatientAvatar';
 
 type Dossier = {
@@ -40,7 +40,7 @@ export function DashboardPage() {
     <div className="space-y-8">
       <div>
         <h1 className="text-3xl font-extrabold tracking-tight">
-          Bonjour{user ? `, ${user.nom.split(' ')[0]}` : ''}
+          Bonjour{user?.nom ? `, ${firstName(user.nom)}` : ''}
         </h1>
         <p className="mt-1 text-muted">
           {user ? ROLE_LABELS[user.role] : ''} — vue d’ensemble du pipeline médical
@@ -54,7 +54,10 @@ export function DashboardPage() {
           { label: 'Validés / verrouillés', value: valides },
           { label: 'Priorité haute', value: urgents },
         ].map((c) => (
-          <div key={c.label} className="rounded-2xl bg-surface p-5 shadow-soft border border-[var(--border)]">
+          <div
+            key={c.label}
+            className="rounded-2xl border border-[var(--border)] bg-surface p-5 shadow-soft"
+          >
             <div className="text-sm text-muted">{c.label}</div>
             <div className="mt-2 text-3xl font-extrabold text-brand">
               {isLoading ? '—' : c.value}
@@ -64,14 +67,11 @@ export function DashboardPage() {
       </div>
 
       {user?.role === 'SUPER_ADMIN' && (
-        <div className="rounded-2xl bg-ink p-6 text-white shadow-soft">
-          <div className="text-sm text-white/60">Pipeline financier (lignes de cotation)</div>
+        <div className="rounded-2xl border border-brand/25 bg-brand p-6 text-white shadow-soft">
+          <div className="text-sm text-white/70">Pipeline financier (cotations en cours)</div>
           <div className="mt-2 text-3xl font-extrabold">{formatMoney(totalCotation)}</div>
-          <p className="mt-3 text-xs text-white/50">
-            Lien portail patient (à envoyer WhatsApp / e-mail) :{' '}
-            <Link className="underline text-white" to="/portail">
-              /portail
-            </Link>
+          <p className="mt-2 text-xs text-white/65">
+            Total calculé en direct depuis les dossiers — aucune donnée fictive.
           </p>
         </div>
       )}

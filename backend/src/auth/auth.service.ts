@@ -33,6 +33,7 @@ export class AuthService {
         nom: user.nom,
         email: user.email,
         role: user.role,
+        photoProfil: user.photoProfil,
       },
       ...tokens,
     };
@@ -80,7 +81,7 @@ export class AuthService {
   async me(userId: string) {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
-      select: { id: true, nom: true, email: true, role: true, actif: true },
+      select: { id: true, nom: true, email: true, role: true, actif: true, photoProfil: true },
     });
     if (!user) throw new UnauthorizedException();
     const permissions = await this.prisma.permission.findMany({

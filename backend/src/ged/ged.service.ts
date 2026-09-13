@@ -3,13 +3,9 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import { mkdir, unlink, writeFile } from 'fs/promises';
-import { existsSync } from 'fs';
-import { join } from 'path';
-import { randomUUID } from 'crypto';
 import { CategorieDocument } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { StorageService } from '../storage/storage.service';
 import { AuthUser } from '../auth/current-user.decorator';
 import { AuditService } from '../audit/audit.service';
 
@@ -17,13 +13,9 @@ import { AuditService } from '../audit/audit.service';
 export class GedService {
   constructor(
     private prisma: PrismaService,
-    private config: ConfigService,
+    private storage: StorageService,
     private audit: AuditService,
   ) {}
-
-  private root() {
-    return this.config.get('GED_STORAGE_PATH', './uploads');
-  }
 
   async upload(
     dossierId: string,
@@ -38,18 +30,19 @@ export class GedService {
     const dossier = await this.prisma.dossier.findUnique({ where: { id: dossierId } });
     if (!dossier) throw new NotFoundException('Dossier introuvable');
 
-    const dir = join(this.root(), dossierId);
-    await mkdir(dir, { recursive: true });
-    const filename = `${randomUUID()}-${file.originalname}`;
-    const path = join(dir, filename);
-    await writeFile(path, file.buffer);
+    const cheminStockage = await this.storage.put(
+      `ged/${dossierId}`,
+      file.originalname,
+      file.buffer,
+      file.mimetype || 'application/octet-stream',
+    );
 
     const doc = await this.prisma.documentGED.create({
       data: {
         dossierId,
         categorie,
         nomFichier: file.originalname,
-        cheminStockage: path,
+        cheminStockage,
         mimeType: file.mimetype,
         tailleOctets: file.size,
         uploadeParId: user.id,
@@ -82,21 +75,17 @@ export class GedService {
 
   async getFile(docId: string) {
     const doc = await this.prisma.documentGED.findUnique({ where: { id: docId } });
-    if (!doc || !existsSync(doc.cheminStockage)) {
-      throw new NotFoundException('Document introuvable');
-    }
-    return doc;
+    if (!doc) throw new NotFoundException('Document introuvable');
+    const opened = await this.storage.open(doc.cheminStockage);
+    if (!opened) throw new NotFoundException('Fichier introuvable');
+    return { doc, stream: opened.stream, contentType: opened.contentType };
   }
 
   async remove(docId: string, user: AuthUser) {
     const doc = await this.prisma.documentGED.findUnique({ where: { id: docId } });
     if (!doc) throw new NotFoundException('Document introuvable');
 
-    try {
-      if (existsSync(doc.cheminStockage)) await unlink(doc.cheminStockage);
-    } catch {
-      /* ignore missing file */
-    }
+    await this.storage.remove(doc.cheminStockage);
 
     await this.prisma.documentGED.delete({ where: { id: docId } });
     await this.audit.log({

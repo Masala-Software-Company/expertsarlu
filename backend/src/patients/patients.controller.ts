@@ -10,8 +10,8 @@ import {
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiBearerAuth, ApiBody, ApiConsumes, ApiTags } from '@nestjs/swagger';
-import { createReadStream, existsSync } from 'fs';
 import type { Response } from 'express';
+import { memoryStorage } from 'multer';
 import { PatientsService } from './patients.service';
 import { RequirePermission } from '../auth/decorators';
 
@@ -30,7 +30,12 @@ export class PatientsController {
       properties: { file: { type: 'string', format: 'binary' } },
     },
   })
-  @UseInterceptors(FileInterceptor('file'))
+  @UseInterceptors(
+    FileInterceptor('file', {
+      storage: memoryStorage(),
+      limits: { fileSize: 12 * 1024 * 1024 },
+    }),
+  )
   uploadPhoto(
     @Param('id') id: string,
     @UploadedFile() file: Express.Multer.File,
@@ -41,12 +46,10 @@ export class PatientsController {
   @Get(':id/photo')
   @RequirePermission({ module: 'dossiers', action: 'read' })
   async getPhoto(@Param('id') id: string, @Res() res: Response) {
-    const meta = await this.patients.getPhotoPath(id);
-    if (!meta || !existsSync(meta.path)) {
-      throw new NotFoundException('Photo introuvable');
-    }
+    const meta = await this.patients.getPhoto(id);
+    if (!meta) throw new NotFoundException('Photo introuvable');
     res.setHeader('Content-Type', meta.mime);
     res.setHeader('Cache-Control', 'private, max-age=3600');
-    createReadStream(meta.path).pipe(res);
+    meta.stream.pipe(res);
   }
 }

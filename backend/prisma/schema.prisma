@@ -116,6 +116,7 @@ model User {
   hashPassword String   @map("hash_password")
   role         RoleName
   actif        Boolean  @default(true)
+  photoProfil  String?  @map("photo_profil")
   creeLe       DateTime @default(now()) @map("cree_le")
   majLe        DateTime @updatedAt @map("maj_le")
 

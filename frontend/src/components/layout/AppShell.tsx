@@ -12,16 +12,16 @@ import {
   Search,
   Moon,
   Sun,
-  PanelLeftClose,
-  PanelLeftOpen,
   ChevronsLeft,
   ChevronsRight,
 } from 'lucide-react';
 import logoLight from '@/assets/logos/logo-light.jpg';
+import logoDark from '@/assets/logos/logo-dark.png';
 import { useAuthStore } from '@/features/auth/auth-store';
 import { useUiStore } from '@/lib/ui-store';
-import { ROLE_LABELS, cn } from '@/lib/utils';
+import { ROLE_LABELS, cn, firstName } from '@/lib/utils';
 import { Button } from '@/components/ui/Button';
+import { UserAvatar } from '@/components/UserAvatar';
 
 const NAV = [
   { to: '/', label: 'Tableau de bord', icon: LayoutDashboard, roles: 'all' },
@@ -57,8 +57,8 @@ const NAV = [
     roles: ['SUPER_ADMIN', 'ASSISTANT_MANAGER'],
   },
   {
-    to: '/utilisateurs',
-    label: 'Utilisateurs',
+    to: '/equipe',
+    label: 'Équipe',
     icon: UserCog,
     roles: ['SUPER_ADMIN'],
   },
@@ -89,25 +89,14 @@ export function AppShell() {
         <div
           className={cn(
             'flex h-16 items-center border-b border-[var(--border)]',
-            collapsed ? 'justify-center px-2' : 'justify-between gap-2 px-3',
+            collapsed ? 'justify-center px-2' : 'px-4',
           )}
         >
           <img
-            src={logoLight}
+            src={dark ? logoDark : logoLight}
             alt="eXpert SARLU"
-            className={cn('object-contain', collapsed ? 'h-7 w-7' : 'h-8 max-w-[140px]')}
+            className={cn('object-contain', collapsed ? 'h-7 w-7' : 'h-8 max-w-[150px]')}
           />
-          {!collapsed && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={toggleSidebar}
-              aria-label="Réduire le menu"
-              title="Réduire le menu"
-            >
-              <ChevronsLeft className="h-4 w-4" />
-            </Button>
-          )}
         </div>
 
         <nav className={cn('flex-1 space-y-1 overflow-y-auto p-2', collapsed && 'px-1.5')}>
@@ -134,13 +123,33 @@ export function AppShell() {
         </nav>
 
         <div className={cn('border-t border-[var(--border)] p-2', collapsed && 'px-1.5')}>
-          {!collapsed && user && (
-            <div className="mb-2 rounded-xl bg-canvas px-3 py-2">
-              <div className="truncate text-sm font-semibold">{user.nom}</div>
-              <div className="truncate text-xs text-muted">
-                {ROLE_LABELS[user.role] ?? user.role}
-              </div>
-            </div>
+          {user && (
+            <button
+              type="button"
+              onClick={() => navigate('/profil')}
+              className={cn(
+                'mb-2 w-full rounded-xl bg-canvas transition-ui hover:bg-brand/10',
+                collapsed ? 'flex justify-center p-2' : 'flex items-center gap-3 px-3 py-2 text-left',
+              )}
+              title="Mon profil"
+            >
+              <UserAvatar
+                userId={user.id}
+                photoProfil={user.photoProfil}
+                nom={user.nom}
+                size="sm"
+              />
+              {!collapsed && (
+                <div className="min-w-0">
+                  <div className="truncate text-sm font-semibold">
+                    Bonjour, {firstName(user.nom) || '…'}
+                  </div>
+                  <div className="truncate text-xs text-muted">
+                    {ROLE_LABELS[user.role] ?? user.role}
+                  </div>
+                </div>
+              )}
+            </button>
           )}
           <Button
             variant="ghost"
@@ -154,20 +163,8 @@ export function AppShell() {
             <LogOut className="h-4 w-4" />
             {!collapsed && 'Déconnexion'}
           </Button>
-          {collapsed && (
-            <Button
-              variant="ghost"
-              className="mt-1 w-full justify-center px-0"
-              onClick={toggleSidebar}
-              aria-label="Étendre le menu"
-              title="Étendre le menu"
-            >
-              <ChevronsRight className="h-4 w-4" />
-            </Button>
-          )}
         </div>
 
-        {/* Poignée de redimensionnement / collapse au bord */}
         <button
           type="button"
           onClick={toggleSidebar}
@@ -184,33 +181,18 @@ export function AppShell() {
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="flex h-16 items-center justify-between gap-3 border-b border-[var(--border)] bg-surface/80 px-5 backdrop-blur">
-          <div className="flex items-center gap-2">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={toggleSidebar}
-              aria-label={collapsed ? 'Afficher le menu' : 'Masquer le menu'}
-              title={collapsed ? 'Afficher le menu' : 'Masquer le menu'}
-            >
-              {collapsed ? (
-                <PanelLeftOpen className="h-4 w-4" />
-              ) : (
-                <PanelLeftClose className="h-4 w-4" />
-              )}
-            </Button>
-            <button
-              type="button"
-              onClick={() => setCommandOpen(true)}
-              className="flex h-10 w-72 max-w-[50vw] items-center gap-2 rounded-xl border border-[var(--border)] bg-canvas px-3 text-sm text-muted transition-ui hover:border-brand/30"
-            >
-              <Search className="h-4 w-4" />
-              Rechercher…
-              <kbd className="ml-auto rounded border border-[var(--border)] bg-surface px-1.5 py-0.5 text-[10px] font-semibold text-muted">
-                ⌘K
-              </kbd>
-            </button>
-          </div>
+        <header className="flex h-16 items-center justify-between gap-3 border-b border-[var(--border)] bg-surface px-5 backdrop-blur supports-[backdrop-filter]:bg-[color-mix(in_srgb,var(--surface)_85%,transparent)]">
+          <button
+            type="button"
+            onClick={() => setCommandOpen(true)}
+            className="flex h-10 w-72 max-w-[50vw] items-center gap-2 rounded-xl border border-[var(--border)] bg-canvas px-3 text-sm text-muted transition-ui hover:border-brand/30"
+          >
+            <Search className="h-4 w-4" />
+            Rechercher…
+            <kbd className="ml-auto rounded border border-[var(--border)] bg-surface px-1.5 py-0.5 text-[10px] font-semibold text-muted">
+              ⌘K
+            </kbd>
+          </button>
           <Button
             variant="ghost"
             size="sm"

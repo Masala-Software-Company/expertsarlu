@@ -11,6 +11,7 @@ import { ProspectsPage } from '@/features/prospects/ProspectsPage';
 import { LogistiquePage } from '@/features/logistique/LogistiquePage';
 import { AuditPage } from '@/features/audit/AuditPage';
 import { UsersPage } from '@/features/users/UsersPage';
+import { ProfilePage } from '@/features/profile/ProfilePage';
 import { ClientPortalPage } from '@/features/client-portal/ClientPortalPage';
 import { VersionChecker } from '@/components/VersionChecker';
 import { CommandPalette } from '@/components/CommandPalette';
@@ -44,7 +45,9 @@ export default function App() {
           <Route path="tarification" element={<TarificationPage />} />
           <Route path="corbeille" element={<CorbeillePage />} />
           <Route path="audit" element={<AuditPage />} />
-          <Route path="utilisateurs" element={<UsersPage />} />
+          <Route path="profil" element={<ProfilePage />} />
+          <Route path="utilisateurs" element={<Navigate to="/equipe" replace />} />
+          <Route path="equipe" element={<UsersPage />} />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

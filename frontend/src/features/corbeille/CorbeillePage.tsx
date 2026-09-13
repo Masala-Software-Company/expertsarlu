@@ -52,14 +52,13 @@ export function CorbeillePage() {
     <div className="space-y-5">
       <div>
         <h1 className="text-3xl font-extrabold tracking-tight">Corbeille</h1>
-        <p className="text-sm text-black/50">
-          Dossiers en ARCHIVE_SUPPRIME — rétention 90 jours. Suppression définitive réservée au
-          Super Admin.
+        <p className="text-sm text-muted">
+          Dossiers archivés — rétention 90 jours. Suppression définitive réservée au Super Admin.
         </p>
       </div>
-      <div className="overflow-hidden rounded-2xl border border-black/5 bg-white shadow-soft">
-        <table className="w-full text-sm">
-          <thead className="bg-canvas text-left text-xs uppercase text-black/40">
+      <div className="overflow-hidden rounded-2xl border border-[var(--border)] bg-surface shadow-soft">
+        <table className="w-full text-sm text-ink">
+          <thead className="bg-canvas text-left text-xs uppercase text-muted">
             <tr>
               <th className="px-4 py-3">N°</th>
               <th className="px-4 py-3">Patient</th>
@@ -70,17 +69,17 @@ export function CorbeillePage() {
           </thead>
           <tbody>
             {data.map((d) => (
-              <tr key={d.id} className="border-t border-black/5">
+              <tr key={d.id} className="border-t border-[var(--border)]">
                 <td className="px-4 py-3 font-semibold text-brand">{d.numero}</td>
                 <td className="px-4 py-3">
                   {d.patient ? `${d.patient.prenom} ${d.patient.nom}` : '—'}
                 </td>
-                <td className="px-4 py-3">
+                <td className="px-4 py-3 text-muted">
                   {d.supprimeLe
                     ? format(new Date(d.supprimeLe), 'dd MMM yyyy HH:mm', { locale: fr })
                     : '—'}
                 </td>
-                <td className="px-4 py-3">{d.supprimePar?.nom ?? '—'}</td>
+                <td className="px-4 py-3 text-muted">{d.supprimePar?.nom ?? '—'}</td>
                 <td className="px-4 py-3 text-right space-x-2">
                   {isAdmin && (
                     <>
@@ -92,15 +91,13 @@ export function CorbeillePage() {
                       </Button>
                     </>
                   )}
-                  {!isAdmin && (
-                    <span className="text-xs text-black/40">Lecture seule</span>
-                  )}
+                  {!isAdmin && <span className="text-xs text-muted">Lecture seule</span>}
                 </td>
               </tr>
             ))}
             {data.length === 0 && (
               <tr>
-                <td colSpan={5} className="px-4 py-12 text-center text-black/40">
+                <td colSpan={5} className="px-4 py-12 text-center text-muted">
                   Corbeille vide
                 </td>
               </tr>
@@ -110,10 +107,10 @@ export function CorbeillePage() {
       </div>
 
       {hardId && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/40 p-4">
-          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-soft">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-2xl border border-[var(--border)] bg-surface p-6 shadow-soft">
             <h3 className="text-lg font-bold">Suppression irréversible</h3>
-            <p className="mt-2 text-sm text-black/60">
+            <p className="mt-2 text-sm text-muted">
               Tapez le numéro exact du dossier pour confirmer.
             </p>
             <Input

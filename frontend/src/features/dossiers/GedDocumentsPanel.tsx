@@ -57,9 +57,7 @@ export function GedDocumentsPanel({
       const fd = new FormData();
       fd.append('file', file);
       return (
-        await api.post(`/ged/${dossierId}?categorie=${categorie}`, fd, {
-          headers: { 'Content-Type': 'multipart/form-data' },
-        })
+        await api.post(`/ged/${dossierId}?categorie=${categorie}`, fd)
       ).data;
     },
     onSuccess: () => {

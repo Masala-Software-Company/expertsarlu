@@ -21,6 +21,12 @@ export const ROLE_LABELS: Record<string, string> = {
   PROTOCOLE: 'Protocole',
 };
 
+/** Prénom d’affichage pour les salutations (pas le titre de poste). */
+export function firstName(fullName?: string | null) {
+  if (!fullName?.trim()) return '';
+  return fullName.trim().split(/\s+/)[0] ?? '';
+}
+
 export const STATUT_LABELS: Record<string, string> = {
   BROUILLON: 'Brouillon',
   EN_COURS: 'En cours',

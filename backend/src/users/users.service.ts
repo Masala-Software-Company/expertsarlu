@@ -1,22 +1,24 @@
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
 import * as argon2 from 'argon2';
+import { extname } from 'path';
 import { RoleName } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { StorageService } from '../storage/storage.service';
 import { AuthUser } from '../auth/current-user.decorator';
 
-/** Accès métier par rôle (aligné sur le seed RBAC). */
 const ROLE_ACCESS: Record<
   RoleName,
   { label: string; description: string; modules: string[] }
 > = {
   SUPER_ADMIN: {
     label: 'Super Admin',
-    description: 'Accès total : utilisateurs, tarifs, dossiers, audit, corbeille.',
+    description: 'Accès total : équipe, tarifs, dossiers, audit, corbeille.',
     modules: [
       'dossiers',
       'cotation',
@@ -56,14 +58,28 @@ const ROLE_ACCESS: Record<
   },
   PROTOCOLE: {
     label: 'Protocole',
-    description: 'Logistique terrain : dossiers (lecture/maj), planning, GED.',
+    description: 'Logistique terrain : dossiers, planning, GED.',
     modules: ['dossiers', 'logistique', 'ged', 'notifications'],
   },
 };
 
+const userSelect = {
+  id: true,
+  nom: true,
+  email: true,
+  role: true,
+  actif: true,
+  photoProfil: true,
+  creeLe: true,
+  majLe: true,
+} as const;
+
 @Injectable()
 export class UsersService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private storage: StorageService,
+  ) {}
 
   listRoles() {
     return (Object.keys(ROLE_ACCESS) as RoleName[]).map((role) => ({
@@ -74,16 +90,18 @@ export class UsersService {
 
   list() {
     return this.prisma.user.findMany({
-      select: {
-        id: true,
-        nom: true,
-        email: true,
-        role: true,
-        actif: true,
-        creeLe: true,
-      },
+      select: userSelect,
       orderBy: { nom: 'asc' },
     });
+  }
+
+  async getById(id: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id },
+      select: userSelect,
+    });
+    if (!user) throw new NotFoundException('Membre introuvable');
+    return user;
   }
 
   async create(data: {
@@ -107,42 +125,134 @@ export class UsersService {
         hashPassword,
         role: data.role,
       },
-      select: {
-        id: true,
-        nom: true,
-        email: true,
-        role: true,
-        actif: true,
-      },
+      select: userSelect,
     });
   }
 
-  async updateRole(id: string, role: RoleName, actor: AuthUser) {
-    const user = await this.prisma.user.findUnique({ where: { id } });
-    if (!user) throw new NotFoundException('Utilisateur introuvable');
+  async updateProfile(
+    id: string,
+    data: { nom?: string; role?: RoleName; password?: string },
+    actor: AuthUser,
+  ) {
+    const target = await this.prisma.user.findUnique({ where: { id } });
+    if (!target) throw new NotFoundException('Membre introuvable');
 
-    if (user.role === 'SUPER_ADMIN' && role !== 'SUPER_ADMIN') {
+    const isSelf = actor.id === id;
+    const isAdmin = actor.role === 'SUPER_ADMIN';
+    if (!isSelf && !isAdmin) {
+      throw new ForbiddenException();
+    }
+
+    if (data.role && !isAdmin) {
+      throw new ForbiddenException('Seul le Super Admin peut changer un rôle');
+    }
+
+    if (data.role && target.role === 'SUPER_ADMIN' && data.role !== 'SUPER_ADMIN') {
       const count = await this.prisma.user.count({
         where: { role: 'SUPER_ADMIN', actif: true },
       });
       if (count <= 1) {
-        throw new BadRequestException(
-          'Impossible de retirer le dernier Super Admin actif',
-        );
+        throw new BadRequestException('Impossible de retirer le dernier Super Admin');
       }
     }
 
-    if (id === actor.id && role !== 'SUPER_ADMIN') {
-      throw new BadRequestException(
-        'Vous ne pouvez pas retirer votre propre rôle Super Admin',
-      );
+    if (isSelf && data.role && data.role !== 'SUPER_ADMIN' && actor.role === 'SUPER_ADMIN') {
+      throw new BadRequestException('Vous ne pouvez pas retirer votre propre rôle Super Admin');
     }
+
+    const hashPassword = data.password
+      ? await argon2.hash(data.password)
+      : undefined;
 
     return this.prisma.user.update({
       where: { id },
-      data: { role },
-      select: { id: true, nom: true, email: true, role: true, actif: true },
+      data: {
+        nom: data.nom?.trim(),
+        role: data.role,
+        ...(hashPassword ? { hashPassword } : {}),
+      },
+      select: userSelect,
     });
+  }
+
+  async changePassword(
+    id: string,
+    input: { currentPassword?: string; newPassword: string },
+    actor: AuthUser,
+  ) {
+    const isSelf = actor.id === id;
+    const isAdmin = actor.role === 'SUPER_ADMIN';
+    if (!isSelf && !isAdmin) throw new ForbiddenException();
+
+    const user = await this.prisma.user.findUnique({ where: { id } });
+    if (!user) throw new NotFoundException();
+
+    if (isSelf) {
+      if (!input.currentPassword) {
+        throw new BadRequestException('Mot de passe actuel requis');
+      }
+      const ok = await argon2.verify(user.hashPassword, input.currentPassword);
+      if (!ok) throw new BadRequestException('Mot de passe actuel incorrect');
+    }
+
+    if (!input.newPassword || input.newPassword.length < 8) {
+      throw new BadRequestException('Nouveau mot de passe : min. 8 caractères');
+    }
+
+    await this.prisma.user.update({
+      where: { id },
+      data: { hashPassword: await argon2.hash(input.newPassword) },
+    });
+    return { ok: true };
+  }
+
+  async uploadPhoto(id: string, file: Express.Multer.File, actor: AuthUser) {
+    if (actor.id !== id && actor.role !== 'SUPER_ADMIN') {
+      throw new ForbiddenException();
+    }
+    if (!file?.buffer?.length || !file.mimetype.startsWith('image/')) {
+      throw new BadRequestException('Image requise');
+    }
+
+    const user = await this.prisma.user.findUnique({ where: { id } });
+    if (!user) throw new NotFoundException();
+
+    if (user.photoProfil) {
+      await this.storage.remove(user.photoProfil);
+    }
+
+    const ref = await this.storage.put(
+      'avatars',
+      `${id}${extname(file.originalname) || '.jpg'}`,
+      file.buffer,
+      file.mimetype,
+    );
+
+    return this.prisma.user.update({
+      where: { id },
+      data: { photoProfil: ref },
+      select: userSelect,
+    });
+  }
+
+  async getPhoto(id: string) {
+    const user = await this.prisma.user.findUnique({ where: { id } });
+    if (!user?.photoProfil) return null;
+    const opened = await this.storage.open(user.photoProfil);
+    if (!opened) return null;
+    const lower = user.photoProfil.toLowerCase();
+    const mime =
+      opened.contentType ||
+      (lower.endsWith('.png')
+        ? 'image/png'
+        : lower.endsWith('.webp')
+          ? 'image/webp'
+          : 'image/jpeg');
+    return { stream: opened.stream, mime };
+  }
+
+  async updateRole(id: string, role: RoleName, actor: AuthUser) {
+    return this.updateProfile(id, { role }, actor);
   }
 
   async setActif(id: string, actif: boolean, actor: AuthUser) {
@@ -166,7 +276,7 @@ export class UsersService {
     return this.prisma.user.update({
       where: { id },
       data: { actif },
-      select: { id: true, nom: true, email: true, role: true, actif: true },
+      select: userSelect,
     });
   }
 
@@ -188,6 +298,7 @@ export class UsersService {
       }
     }
 
+    if (user.photoProfil) await this.storage.remove(user.photoProfil);
     await this.prisma.refreshToken.deleteMany({ where: { userId: id } });
     await this.prisma.user.delete({ where: { id } });
     return { ok: true, id };

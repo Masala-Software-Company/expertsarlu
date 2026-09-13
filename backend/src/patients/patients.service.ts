@@ -3,22 +3,16 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import { mkdir, writeFile } from 'fs/promises';
-import { extname, join } from 'path';
-import { randomUUID } from 'crypto';
+import { extname } from 'path';
 import { PrismaService } from '../prisma/prisma.service';
+import { StorageService } from '../storage/storage.service';
 
 @Injectable()
 export class PatientsService {
   constructor(
     private prisma: PrismaService,
-    private config: ConfigService,
+    private storage: StorageService,
   ) {}
-
-  private root() {
-    return this.config.get('GED_STORAGE_PATH', './uploads');
-  }
 
   async uploadPhoto(patientId: string, file: Express.Multer.File) {
     if (!file?.buffer?.length) {
@@ -31,15 +25,20 @@ export class PatientsService {
     const patient = await this.prisma.patient.findUnique({ where: { id: patientId } });
     if (!patient) throw new NotFoundException('Patient introuvable');
 
-    const dir = join(this.root(), 'photos');
-    await mkdir(dir, { recursive: true });
-    const filename = `${randomUUID()}${extname(file.originalname) || '.jpg'}`;
-    const path = join(dir, filename);
-    await writeFile(path, file.buffer);
+    if (patient.photoProfil) {
+      await this.storage.remove(patient.photoProfil);
+    }
+
+    const ref = await this.storage.put(
+      'photos',
+      `${patientId}${extname(file.originalname) || '.jpg'}`,
+      file.buffer,
+      file.mimetype,
+    );
 
     return this.prisma.patient.update({
       where: { id: patientId },
-      data: { photoProfil: path },
+      data: { photoProfil: ref },
       select: {
         id: true,
         nom: true,
@@ -50,14 +49,19 @@ export class PatientsService {
     });
   }
 
-  async getPhotoPath(patientId: string) {
+  async getPhoto(patientId: string) {
     const patient = await this.prisma.patient.findUnique({ where: { id: patientId } });
     if (!patient?.photoProfil) return null;
-    const mime = patient.photoProfil.toLowerCase().endsWith('.png')
-      ? 'image/png'
-      : patient.photoProfil.toLowerCase().endsWith('.webp')
-        ? 'image/webp'
-        : 'image/jpeg';
-    return { path: patient.photoProfil, mime };
+    const opened = await this.storage.open(patient.photoProfil);
+    if (!opened) return null;
+    const lower = patient.photoProfil.toLowerCase();
+    const mime =
+      opened.contentType ||
+      (lower.endsWith('.png')
+        ? 'image/png'
+        : lower.endsWith('.webp')
+          ? 'image/webp'
+          : 'image/jpeg');
+    return { stream: opened.stream, mime };
   }
 }

@@ -192,7 +192,7 @@ export function DossierDetailPage() {
             onClick={() => setTab(t.id)}
             className={cn(
               'rounded-lg px-4 py-2 text-sm font-semibold transition-ui',
-              tab === t.id ? 'bg-brand text-white' : 'text-black/60 hover:bg-canvas',
+              tab === t.id ? 'bg-brand text-white' : 'text-muted hover:bg-canvas',
             )}
           >
             {t.label}
@@ -323,10 +323,10 @@ export function DossierDetailPage() {
       )}
 
       {confirmDelete && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/40 p-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
           <div className="w-full max-w-md rounded-2xl bg-surface p-6 shadow-soft">
             <h3 className="text-lg font-bold">Déplacer vers la corbeille ?</h3>
-            <p className="mt-2 text-sm text-black/60">
+            <p className="mt-2 text-sm text-muted">
               Ce dossier sera déplacé vers la corbeille et récupérable pendant 90 jours. Aucune
               suppression définitive immédiate.
             </p>

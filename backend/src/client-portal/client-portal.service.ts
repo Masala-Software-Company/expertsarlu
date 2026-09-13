@@ -1,11 +1,8 @@
 import { Injectable } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
 import { Priorite, TypeClient } from '@prisma/client';
-import { mkdir, writeFile } from 'fs/promises';
-import { extname, join } from 'path';
-import { randomUUID } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { StorageService } from '../storage/storage.service';
 
 type InscriptionInput = {
   nom: string;
@@ -27,13 +24,9 @@ type InscriptionInput = {
 export class ClientPortalService {
   constructor(
     private prisma: PrismaService,
-    private config: ConfigService,
     private notifications: NotificationsService,
+    private storage: StorageService,
   ) {}
-
-  private root() {
-    return this.config.get('GED_STORAGE_PATH', './uploads');
-  }
 
   private async nextNumero() {
     const annee = new Date().getFullYear();
@@ -50,12 +43,12 @@ export class ClientPortalService {
     file: Express.Multer.File | undefined,
   ): Promise<string | undefined> {
     if (!file?.buffer?.length) return undefined;
-    const dir = join(this.root(), subdir);
-    await mkdir(dir, { recursive: true });
-    const filename = `${randomUUID()}${extname(file.originalname) || ''}`;
-    const path = join(dir, filename);
-    await writeFile(path, file.buffer);
-    return path;
+    return this.storage.put(
+      subdir,
+      file.originalname || 'file',
+      file.buffer,
+      file.mimetype || 'application/octet-stream',
+    );
   }
 
   async inscrire(

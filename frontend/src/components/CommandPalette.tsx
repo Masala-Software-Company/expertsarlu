@@ -39,7 +39,7 @@ export function CommandPalette() {
       { id: 'dos', label: 'Tous les dossiers', to: '/dossiers' },
       { id: 'pros', label: 'Prospects', to: '/prospects' },
       { id: 'log', label: 'Logistique / Planning', to: '/logistique' },
-      { id: 'users', label: 'Utilisateurs & rôles', to: '/utilisateurs' },
+      { id: 'users', label: 'Équipe', to: '/equipe' },
     ],
     [],
   );
@@ -47,9 +47,9 @@ export function CommandPalette() {
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-[70] bg-ink/40 backdrop-blur-sm" onClick={() => setOpen(false)}>
+    <div className="fixed inset-0 z-[70] bg-black/50 backdrop-blur-sm" onClick={() => setOpen(false)}>
       <div
-        className="mx-auto mt-[12vh] w-full max-w-xl overflow-hidden rounded-2xl bg-white shadow-soft"
+        className="mx-auto mt-[12vh] w-full max-w-xl overflow-hidden rounded-2xl bg-surface shadow-soft"
         onClick={(e) => e.stopPropagation()}
       >
         <Command label="Recherche globale" shouldFilter={false}>
@@ -57,13 +57,13 @@ export function CommandPalette() {
             value={q}
             onValueChange={setQ}
             placeholder="Rechercher un dossier, patient, action…"
-            className="h-14 w-full border-b border-black/5 px-4 text-base outline-none"
+            className="h-14 w-full border-b border-[var(--border)] px-4 text-base outline-none"
           />
           <Command.List className="max-h-80 overflow-auto p-2">
-            <Command.Empty className="px-3 py-6 text-sm text-black/50">
+            <Command.Empty className="px-3 py-6 text-sm text-muted">
               Aucun résultat
             </Command.Empty>
-            <Command.Group heading="Actions" className="px-2 py-1 text-xs font-semibold text-black/40">
+            <Command.Group heading="Actions" className="px-2 py-1 text-xs font-semibold text-muted">
               {actions.map((a) => (
                 <Command.Item
                   key={a.id}
@@ -78,7 +78,7 @@ export function CommandPalette() {
                 </Command.Item>
               ))}
             </Command.Group>
-            <Command.Group heading="Dossiers" className="px-2 py-1 text-xs font-semibold text-black/40">
+            <Command.Group heading="Dossiers" className="px-2 py-1 text-xs font-semibold text-muted">
               {dossiers.slice(0, 8).map((d) => (
                 <Command.Item
                   key={d.id}
@@ -91,7 +91,7 @@ export function CommandPalette() {
                 >
                   <span className="font-semibold text-brand">{d.numero}</span>
                   {d.patient && (
-                    <span className="ml-2 text-black/60">
+                    <span className="ml-2 text-muted">
                       {d.patient.prenom} {d.patient.nom}
                     </span>
                   )}

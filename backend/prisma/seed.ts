@@ -17,7 +17,6 @@ const MODULE_ACTIONS: Record<string, string[]> = {
   notifications: ['read', 'update'],
 };
 
-/** Matrice RBAC (section 1bis du dossier de spécifications) */
 const ROLE_MODULES: Record<RoleName, string[]> = {
   SUPER_ADMIN: Object.keys(MODULE_ACTIONS),
   ASSISTANT_MANAGER: [
@@ -49,7 +48,6 @@ const ROLE_ACTIONS: Partial<Record<RoleName, Record<string, string[]>>> = {
   },
   PROTOCOLE: {
     dossiers: ['read', 'update'],
-    // pas de cotation / facturation / tarification
   },
 };
 
@@ -79,60 +77,44 @@ async function seedPermissions() {
   console.log(`Permissions: ${rows.length}`);
 }
 
-async function seedUsers() {
-  const users: { nom: string; email: string; role: RoleName; password: string }[] = [
-    {
-      nom: 'Direction Générale',
+async function seedAdmin() {
+  // Purge données de démo (garde uniquement le Super Admin)
+  await prisma.prospect.deleteMany();
+  await prisma.paiement.deleteMany();
+  await prisma.documentGED.deleteMany();
+  await prisma.ligneCotation.deleteMany();
+  await prisma.calculAssurance.deleteMany();
+  await prisma.facture.deleteMany();
+  await prisma.rendezVous.deleteMany();
+  await prisma.tacheLogistique.deleteMany();
+  await prisma.accompagnateur.deleteMany();
+  await prisma.patient.deleteMany();
+  await prisma.demandeDeverrouillage.deleteMany();
+  await prisma.dossier.deleteMany();
+  await prisma.notification.deleteMany();
+  await prisma.refreshToken.deleteMany();
+  await prisma.auditLog.deleteMany();
+  await prisma.user.deleteMany({
+    where: { email: { not: 'admin@expert.sarlu' } },
+  });
+
+  const hashPassword = await argon2.hash('Expert2026!');
+  await prisma.user.upsert({
+    where: { email: 'admin@expert.sarlu' },
+    create: {
+      nom: 'Admin',
       email: 'admin@expert.sarlu',
       role: 'SUPER_ADMIN',
-      password: 'Expert2026!',
+      hashPassword,
     },
-    {
-      nom: 'Nathan Vakele',
-      email: 'nathan@expert.sarlu',
-      role: 'ASSISTANT_MANAGER',
-      password: 'Expert2026!',
+    update: {
+      nom: 'Admin',
+      role: 'SUPER_ADMIN',
+      hashPassword,
+      actif: true,
     },
-    {
-      nom: 'Emmanuelle Makoso',
-      email: 'emmanuelle@expert.sarlu',
-      role: 'SUPPORT_CLIENT',
-      password: 'Expert2026!',
-    },
-    {
-      nom: 'Ketsia Ngalula',
-      email: 'ketsia@expert.sarlu',
-      role: 'CAISSE_ADMIN',
-      password: 'Expert2026!',
-    },
-    {
-      nom: 'Jephté Kiwa',
-      email: 'jephte@expert.sarlu',
-      role: 'PROTOCOLE',
-      password: 'Expert2026!',
-    },
-    {
-      nom: 'Grace Moke',
-      email: 'grace@expert.sarlu',
-      role: 'PROTOCOLE',
-      password: 'Expert2026!',
-    },
-  ];
-
-  for (const u of users) {
-    const hashPassword = await argon2.hash(u.password);
-    await prisma.user.upsert({
-      where: { email: u.email },
-      create: {
-        nom: u.nom,
-        email: u.email,
-        role: u.role,
-        hashPassword,
-      },
-      update: { nom: u.nom, role: u.role, hashPassword, actif: true },
-    });
-  }
-  console.log(`Users: ${users.length}`);
+  });
+  console.log('Demo data purged. Super Admin only (admin@expert.sarlu) — mettez votre vrai nom dans Profil');
 }
 
 async function seedTarifs() {
@@ -168,72 +150,11 @@ async function seedVersion() {
   });
 }
 
-async function seedDemoDossier() {
-  const admin = await prisma.user.findUnique({ where: { email: 'admin@expert.sarlu' } });
-  if (!admin) return;
-
-  const existing = await prisma.dossier.findFirst({ where: { numero: 'MED-2026-0001' } });
-  if (existing) return;
-
-  await prisma.dossierSequence.upsert({
-    where: { annee: 2026 },
-    create: { annee: 2026, dernier: 1 },
-    update: { dernier: 1 },
-  });
-
-  await prisma.dossier.create({
-    data: {
-      numero: 'MED-2026-0001',
-      typeClient: 'PARTICULIER',
-      statut: 'EN_COURS',
-      destination: 'Turquie — Istanbul',
-      pathologie: 'Chirurgie orthopédique',
-      budget: 8500,
-      priorite: 'URGENTE',
-      creeParId: admin.id,
-      patient: {
-        create: {
-          nom: 'Kabongo',
-          prenom: 'Patrick',
-          telephone: '+243810000001',
-          email: 'patrick.kabongo@example.com',
-          nationalite: 'Congolaise',
-        },
-      },
-      accompagnateurs: {
-        create: [{ nom: 'Kabongo', prenom: 'Marie', lien: 'Épouse' }],
-      },
-    },
-  });
-
-  await prisma.prospect.createMany({
-    data: [
-      {
-        nom: 'Mwamba',
-        prenom: 'Sarah',
-        telephone: '+243820000002',
-        sourceContact: 'WhatsApp',
-        statut: 'NOUVEAU',
-      },
-      {
-        nom: 'Ilunga',
-        prenom: 'Jean',
-        email: 'jean.ilunga@example.com',
-        sourceContact: 'Email',
-        statut: 'EN_DISCUSSION',
-      },
-    ],
-  });
-
-  console.log('Demo dossier + prospects seeded');
-}
-
 async function main() {
   await seedPermissions();
-  await seedUsers();
+  await seedAdmin();
   await seedTarifs();
   await seedVersion();
-  await seedDemoDossier();
 }
 
 main()

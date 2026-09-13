@@ -34,8 +34,13 @@ export function LoginPage() {
       const { data } = await api.post('/auth/login', values);
       setSession(data.user, data.accessToken, data.refreshToken);
       const me = await api.get('/auth/me');
-      setUser({ ...data.user, permissions: me.data.permissions });
-      toast.success(`Bienvenue, ${data.user.nom}`);
+      setUser({
+        ...data.user,
+        nom: me.data.nom,
+        photoProfil: me.data.photoProfil,
+        permissions: me.data.permissions,
+      });
+      toast.success(`Bienvenue, ${me.data.nom?.split(/\s+/)[0] || data.user.nom}`);
       navigate('/');
     } catch (err: unknown) {
       const ax = err as {
@@ -81,7 +86,7 @@ export function LoginPage() {
         <form onSubmit={onSubmit} className="w-full max-w-sm space-y-5">
           <div>
             <h2 className="text-2xl font-extrabold tracking-tight">Connexion</h2>
-            <p className="mt-1 text-sm text-black/50">Accès réservé au personnel eXpert SARLU</p>
+            <p className="mt-1 text-sm text-muted">Accès réservé au personnel eXpert SARLU</p>
           </div>
           <div className="space-y-2">
             <label className="text-sm font-medium">Email</label>
@@ -96,7 +101,7 @@ export function LoginPage() {
           <Button type="submit" className="w-full" disabled={isSubmitting}>
             {isSubmitting ? 'Connexion…' : 'Se connecter'}
           </Button>
-          <p className="text-center text-[11px] text-black/35 break-all">
+          <p className="text-center text-[11px] text-muted break-all">
             API : {(import.meta.env.VITE_API_URL as string) ?? 'http://localhost:3000/api'}
           </p>
         </form>

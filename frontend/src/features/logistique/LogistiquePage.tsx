@@ -23,15 +23,17 @@ export function LogistiquePage() {
     <div className="space-y-5 max-w-2xl">
       <div>
         <h1 className="text-3xl font-extrabold tracking-tight">Protocole — Planning</h1>
-        <p className="text-sm text-black/50">
-          Interface terrain : navettes et rendez-vous du jour (grandes zones tactiles)
+        <p className="text-sm text-muted">
+          Navettes et rendez-vous du jour (interface terrain)
         </p>
       </div>
 
       <div className="space-y-3">
-        {isLoading && <div className="h-24 animate-pulse rounded-2xl bg-white shadow-soft" />}
+        {isLoading && (
+          <div className="h-24 animate-pulse rounded-2xl border border-[var(--border)] bg-surface shadow-soft" />
+        )}
         {!isLoading && data.length === 0 && (
-          <div className="rounded-2xl border border-dashed border-black/10 bg-white p-10 text-center text-black/40">
+          <div className="rounded-2xl border border-dashed border-[var(--border)] bg-surface p-10 text-center text-muted">
             Aucun rendez-vous aujourd’hui
           </div>
         )}
@@ -39,7 +41,7 @@ export function LogistiquePage() {
           <button
             key={r.id}
             type="button"
-            className="flex w-full items-center justify-between gap-4 rounded-2xl border border-black/5 bg-white p-5 text-left shadow-soft transition-ui hover:border-brand/40 active:scale-[0.99]"
+            className="flex w-full items-center justify-between gap-4 rounded-2xl border border-[var(--border)] bg-surface p-5 text-left text-ink shadow-soft transition-ui hover:border-brand/40 active:scale-[0.99]"
           >
             <div>
               <div className="text-xs font-bold uppercase tracking-wide text-brand">{r.type}</div>
@@ -47,14 +49,14 @@ export function LogistiquePage() {
                 {format(new Date(r.dateHeure), 'HH:mm', { locale: fr })}
                 {r.lieu ? ` · ${r.lieu}` : ''}
               </div>
-              <div className="mt-1 text-sm text-black/55">
+              <div className="mt-1 text-sm text-muted">
                 {r.dossier?.numero}
                 {r.dossier?.patient
                   ? ` — ${r.dossier.patient.prenom} ${r.dossier.patient.nom}`
                   : ''}
               </div>
             </div>
-            <div className="rounded-full bg-canvas px-3 py-1 text-xs font-semibold text-black/50">
+            <div className="rounded-full bg-canvas px-3 py-1 text-xs font-semibold text-muted">
               {r.statut}
             </div>
           </button>

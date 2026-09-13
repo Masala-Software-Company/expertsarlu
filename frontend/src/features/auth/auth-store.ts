@@ -6,6 +6,7 @@ export type User = {
   nom: string;
   email: string;
   role: string;
+  photoProfil?: string | null;
   permissions?: { module: string; action: string }[];
 };
 
