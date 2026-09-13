@@ -13,9 +13,9 @@ from PIL import Image, ImageDraw
 
 ROOT = Path(__file__).resolve().parents[1]
 LOGO = ROOT / "logo" / "IMG_5731.jpg"
-OUT_DIR = ROOT / "apps" / "desktop" / "src-tauri" / "icons"
-ASSETS = ROOT / "apps" / "desktop" / "src" / "assets" / "logos"
-PUBLIC = ROOT / "apps" / "desktop" / "public"
+OUT_DIR = ROOT / "frontend" / "src-tauri" / "icons"
+ASSETS = ROOT / "frontend" / "src" / "assets" / "logos"
+PUBLIC = ROOT / "frontend" / "public"
 
 MAC_CORNER_RATIO = 0.2237
 BRAND_BLUE = (20, 78, 185, 255)

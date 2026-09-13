@@ -1,0 +1,13 @@
+# Railway — service Root Directory MUST be: backend
+# Settings → Root Directory → backend
+
+[build]
+builder = "RAILPACK"
+buildCommand = "pnpm install --no-frozen-lockfile && pnpm run build"
+
+[deploy]
+startCommand = "pnpm run start:prod"
+healthcheckPath = "/health"
+healthcheckTimeout = 120
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 5

@@ -10,9 +10,9 @@ dist-ssr
 coverage
 *.log
 .turbo
-apps/api/uploads
-apps/desktop/src-tauri/target
-apps/desktop/src-tauri/gen
+backend/uploads
+frontend/src-tauri/target
+frontend/src-tauri/gen
 *.dmg
 *.exe
 *.msi

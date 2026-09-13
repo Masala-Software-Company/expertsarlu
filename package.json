@@ -4,15 +4,15 @@
   "version": "1.0.0",
   "description": "eXpert SARLU — Bureau de Coordination Médicale Internationale",
   "scripts": {
-    "dev": "pnpm --parallel --filter @expert/api --filter @expert/desktop dev",
-    "dev:api": "pnpm --filter @expert/api dev",
-    "dev:desktop": "pnpm --filter @expert/desktop dev",
+    "dev": "pnpm --parallel --filter @expert/backend --filter @expert/frontend dev",
+    "dev:api": "pnpm --filter @expert/backend dev",
+    "dev:frontend": "pnpm --filter @expert/frontend dev",
     "dev:db": "bash scripts/dev-db.sh",
-    "build": "pnpm --filter @expert/api build && pnpm --filter @expert/desktop build",
-    "build:tauri": "pnpm --filter @expert/desktop tauri:build",
-    "db:migrate": "pnpm --filter @expert/api prisma:migrate",
-    "db:seed": "pnpm --filter @expert/api prisma:seed",
-    "db:generate": "pnpm --filter @expert/api prisma:generate"
+    "build": "pnpm --filter @expert/backend build && pnpm --filter @expert/frontend build",
+    "build:tauri": "pnpm --filter @expert/frontend tauri:build",
+    "db:migrate": "pnpm --filter @expert/backend prisma:migrate",
+    "db:seed": "pnpm --filter @expert/backend prisma:seed",
+    "db:generate": "pnpm --filter @expert/backend prisma:generate"
   },
   "engines": {
     "node": ">=20"
