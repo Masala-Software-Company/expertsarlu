@@ -2,6 +2,8 @@ import {
   BadRequestException,
   Body,
   Controller,
+  Get,
+  Param,
   Post,
   UploadedFiles,
   UseInterceptors,
@@ -18,6 +20,7 @@ import {
 import { Priorite, TypeClient } from '@prisma/client';
 import { Public } from '../auth/decorators';
 import { ClientPortalService } from './client-portal.service';
+import { DossiersService } from '../dossiers/dossiers.service';
 
 class ClientInscriptionDto {
   @ApiProperty()
@@ -89,7 +92,16 @@ class ClientInscriptionDto {
 @ApiTags('client-portal')
 @Controller('client')
 export class ClientPortalController {
-  constructor(private portal: ClientPortalService) {}
+  constructor(
+    private portal: ClientPortalService,
+    private dossiers: DossiersService,
+  ) {}
+
+  @Public()
+  @Get('suivi/:token')
+  suivi(@Param('token') token: string) {
+    return this.dossiers.getBySuiviToken(token);
+  }
 
   @Public()
   @Post('inscription')

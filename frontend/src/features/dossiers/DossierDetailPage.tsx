@@ -2,24 +2,40 @@ import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useParams } from 'react-router-dom';
 import { toast } from 'sonner';
-import { ArrowLeft, Lock, Trash2 } from 'lucide-react';
+import { ArrowLeft, Lock, Trash2, Link2, Unlock, Copy, ExternalLink } from 'lucide-react';
 import { api } from '@/lib/api';
 import { STATUT_LABELS, formatMoney, cn } from '@/lib/utils';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Can, usePermission } from '@/hooks/usePermission';
+import { useAuthStore } from '@/features/auth/auth-store';
 import { PatientAvatar } from '@/components/PatientAvatar';
 import { GedDocumentsPanel } from './GedDocumentsPanel';
+import { FacturationPanel } from './FacturationPanel';
+import { CommunicationsPanel } from './CommunicationsPanel';
 
-type Tab = 'infos' | 'cotation' | 'documents' | 'logistique' | 'audit';
+type Tab =
+  | 'infos'
+  | 'cotation'
+  | 'facturation'
+  | 'documents'
+  | 'logistique'
+  | 'communications'
+  | 'postretour';
 
 export function DossierDetailPage() {
   const { id = '' } = useParams();
+  const user = useAuthStore((s) => s.user);
+  const isSuperAdmin = user?.role === 'SUPER_ADMIN';
   const [tab, setTab] = useState<Tab>('infos');
   const [jours, setJours] = useState(30);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [postStatut, setPostStatut] = useState('EN_ATTENTE');
+  const [postNotes, setPostNotes] = useState('');
+  const [suiviUrl, setSuiviUrl] = useState<string | null>(null);
   const qc = useQueryClient();
   const canFinance = usePermission('cotation', 'read');
+  const canFactu = usePermission('facturation', 'read');
 
   const { data: dossier, isLoading } = useQuery({
     queryKey: ['dossier', id],
@@ -58,7 +74,24 @@ export function DossierDetailPage() {
           motif: 'Correction nécessaire sur la cotation / informations patient',
         })
       ).data,
-    onSuccess: () => toast.success('Demande envoyée au Super Admin'),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['dossier', id] });
+      toast.success(
+        isSuperAdmin ? 'Dossier déverrouillé' : 'Demande envoyée au Super Admin',
+      );
+    },
+    onError: (e: { response?: { data?: { message?: string } } }) =>
+      toast.error(e.response?.data?.message ?? 'Action impossible'),
+  });
+
+  const unlockDirect = useMutation({
+    mutationFn: async () => (await api.post(`/dossiers/${id}/deverrouiller`)).data,
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['dossier', id] });
+      toast.success('Dossier déverrouillé');
+    },
+    onError: (e: { response?: { data?: { message?: string } } }) =>
+      toast.error(e.response?.data?.message ?? 'Déverrouillage impossible'),
   });
 
   const recalcul = useMutation({
@@ -83,21 +116,69 @@ export function DossierDetailPage() {
     onSuccess: () => void qc.invalidateQueries({ queryKey: ['cotation', id] }),
   });
 
+  const suiviLink = useMutation({
+    mutationFn: async () =>
+      (await api.post(`/dossiers/${id}/suivi-token`)).data as { token: string; url: string },
+    onSuccess: (res) => {
+      const full = `${window.location.origin}/suivi/${res.token}`;
+      setSuiviUrl(full);
+      void navigator.clipboard?.writeText(full).catch(() => undefined);
+      toast.success('Lien de suivi prêt');
+    },
+    onError: (e: { response?: { data?: { message?: string } } }) =>
+      toast.error(
+        e.response?.data?.message ??
+          'Impossible de créer le lien — redéployez le backend si l’API est ancienne.',
+      ),
+  });
+
+  const savePostRetour = useMutation({
+    mutationFn: async () =>
+      (
+        await api.patch(`/dossiers/${id}/post-retour`, {
+          postRetourStatut: postStatut,
+          postRetourNotes: postNotes || undefined,
+        })
+      ).data,
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['dossier', id] });
+      toast.success('Post-retour mis à jour');
+    },
+  });
+
+  const createTache = useMutation({
+    mutationFn: async () =>
+      (
+        await api.post(`/logistique/taches/${id}`, {
+          type: 'NAVETTE',
+          titre: 'Navette aéroport',
+        })
+      ).data,
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['dossier', id] });
+      toast.success('Tâche créée');
+    },
+  });
+
   const tabs = useMemo(() => {
     const all: { id: Tab; label: string; hide?: boolean }[] = [
       { id: 'infos', label: 'Informations' },
       { id: 'cotation', label: 'Cotation', hide: !canFinance },
+      { id: 'facturation', label: 'Facturation', hide: !canFactu },
       { id: 'documents', label: 'Documents' },
       { id: 'logistique', label: 'Logistique' },
+      { id: 'communications', label: 'Communications' },
+      { id: 'postretour', label: 'Post-retour' },
     ];
     return all.filter((t) => !t.hide);
-  }, [canFinance]);
+  }, [canFinance, canFactu]);
 
   if (isLoading || !dossier) {
     return <div className="animate-pulse h-40 rounded-2xl bg-surface shadow-soft" />;
   }
 
-  const locked = dossier.verrouille || ['VALIDE', 'FACTURE_PAYE', 'VERROUILLE'].includes(dossier.statut);
+  const locked =
+    dossier.verrouille || ['VALIDE', 'FACTURE_PAYE', 'VERROUILLE'].includes(dossier.statut);
 
   return (
     <div className="space-y-5">
@@ -127,7 +208,7 @@ export function DossierDetailPage() {
               )}
             </p>
           </div>
-          {dossier.patient?.id && (
+          {dossier.patient?.id && !locked && (
             <label className="mt-3 inline-flex cursor-pointer items-center gap-2 text-xs font-semibold text-brand">
               Changer la photo
               <input
@@ -153,12 +234,16 @@ export function DossierDetailPage() {
           )}
         </div>
         <div className="flex flex-wrap gap-2">
+          <Button
+            variant="secondary"
+            size="sm"
+            disabled={suiviLink.isPending}
+            onClick={() => suiviLink.mutate()}
+          >
+            <Link2 className="h-4 w-4" /> Lien suivi
+          </Button>
           <Can module="dossiers" action="validate">
-            <Button
-              variant="secondary"
-              disabled={locked}
-              onClick={() => validate.mutate()}
-            >
+            <Button variant="secondary" disabled={locked} onClick={() => validate.mutate()}>
               Valider
             </Button>
           </Can>
@@ -171,20 +256,35 @@ export function DossierDetailPage() {
       </div>
 
       {locked && (
-        <div className="flex items-center justify-between gap-3 rounded-2xl border border-warning/30 bg-warning/10 px-4 py-3">
-          <div className="flex items-center gap-2 text-amber-800">
-            <Lock className="h-4 w-4" />
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-warning/30 bg-warning/10 px-4 py-3">
+          <div className="flex items-center gap-2 text-amber-800 dark:text-amber-200">
+            <Lock className="h-4 w-4 shrink-0" />
             <span className="text-sm font-medium">
-              Dossier en lecture seule (verrouillé). Les modifications sont bloquées.
+              Dossier en lecture seule (verrouillé).
             </span>
           </div>
-          <Button size="sm" variant="secondary" onClick={() => unlockReq.mutate()}>
-            Demander une modification
-          </Button>
+          {isSuperAdmin ? (
+            <Button
+              size="sm"
+              onClick={() => unlockDirect.mutate()}
+              disabled={unlockDirect.isPending}
+            >
+              <Unlock className="h-4 w-4" /> Déverrouiller
+            </Button>
+          ) : (
+            <Button
+              size="sm"
+              variant="secondary"
+              onClick={() => unlockReq.mutate()}
+              disabled={unlockReq.isPending}
+            >
+              Demander une modification
+            </Button>
+          )}
         </div>
       )}
 
-      <div className="flex gap-1 rounded-xl border border-[var(--border)] bg-surface p-1 w-fit">
+      <div className="flex flex-wrap gap-1 rounded-xl border border-[var(--border)] bg-surface p-1 w-fit">
         {tabs.map((t) => (
           <button
             key={t.id}
@@ -296,20 +396,32 @@ export function DossierDetailPage() {
         </div>
       )}
 
-      {tab === 'documents' && (
-        <GedDocumentsPanel dossierId={id} locked={locked} />
+      {tab === 'facturation' && canFactu && (
+        <FacturationPanel dossierId={id} locked={locked} />
       )}
 
+      {tab === 'documents' && <GedDocumentsPanel dossierId={id} locked={locked} />}
+
       {tab === 'logistique' && (
-        <div className="rounded-2xl bg-surface p-6 shadow-soft border border-[var(--border)]">
-          <p className="text-sm text-muted mb-3">Tâches liées à ce dossier</p>
+        <div className="space-y-3 rounded-2xl border border-[var(--border)] bg-surface p-6 shadow-soft">
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-sm text-muted">Tâches liées à ce dossier</p>
+            <Can module="logistique" action="create">
+              <Button size="sm" disabled={locked} onClick={() => createTache.mutate()}>
+                + Navette
+              </Button>
+            </Can>
+          </div>
           {(dossier.tachesLogistique ?? []).length === 0 ? (
-            <p className="text-sm text-muted">Aucune tâche — créez-en depuis Protocole.</p>
+            <p className="text-sm text-muted">Aucune tâche — créez-en ici ou depuis Protocole.</p>
           ) : (
             <ul className="space-y-2">
               {dossier.tachesLogistique.map(
                 (t: { id: string; titre: string; type: string; statut: string }) => (
-                  <li key={t.id} className="flex justify-between rounded-xl bg-canvas px-3 py-2 text-sm">
+                  <li
+                    key={t.id}
+                    className="flex justify-between rounded-xl bg-canvas px-3 py-2 text-sm"
+                  >
                     <span>
                       <strong>{t.titre}</strong> · {t.type}
                     </span>
@@ -319,6 +431,49 @@ export function DossierDetailPage() {
               )}
             </ul>
           )}
+        </div>
+      )}
+
+      {tab === 'communications' && (
+        <CommunicationsPanel dossierId={id} locked={locked} />
+      )}
+
+      {tab === 'postretour' && (
+        <div className="max-w-lg space-y-3 rounded-2xl border border-[var(--border)] bg-surface p-6 shadow-soft">
+          <h3 className="font-bold">Suivi post-retour</h3>
+          <p className="text-sm text-muted">
+            Le patient est-il rentré ? Besoin d’un accompagnement après le vol retour ?
+          </p>
+          {dossier.postRetourStatut && (
+            <p className="text-sm">
+              Actuel : <strong>{dossier.postRetourStatut}</strong>
+              {dossier.postRetourLe
+                ? ` · ${new Date(dossier.postRetourLe).toLocaleString('fr-FR')}`
+                : ''}
+            </p>
+          )}
+          <select
+            className="w-full rounded-xl border border-[var(--border)] bg-canvas px-3 py-2 text-sm"
+            value={postStatut}
+            disabled={locked}
+            onChange={(e) => setPostStatut(e.target.value)}
+          >
+            {['EN_ATTENTE', 'RENTRE', 'SUIVI', 'CLOS'].map((s) => (
+              <option key={s} value={s}>
+                {s}
+              </option>
+            ))}
+          </select>
+          <textarea
+            className="min-h-[80px] w-full rounded-xl border border-[var(--border)] bg-canvas px-3 py-2 text-sm"
+            placeholder="Notes"
+            value={postNotes || dossier.postRetourNotes || ''}
+            disabled={locked}
+            onChange={(e) => setPostNotes(e.target.value)}
+          />
+          <Button disabled={locked || savePostRetour.isPending} onClick={() => savePostRetour.mutate()}>
+            Enregistrer
+          </Button>
         </div>
       )}
 
@@ -341,6 +496,39 @@ export function DossierDetailPage() {
                 disabled={softDelete.isPending}
               >
                 Confirmer
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {suiviUrl && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-lg space-y-4 rounded-2xl bg-surface p-6 shadow-soft">
+            <h3 className="text-lg font-bold">Lien de suivi patient</h3>
+            <p className="text-sm text-muted">
+              Partagez ce lien avec le patient — aucune connexion requise.
+            </p>
+            <code className="block break-all rounded-xl bg-canvas px-3 py-2 text-xs">{suiviUrl}</code>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                variant="secondary"
+                className="flex-1"
+                onClick={() => {
+                  void navigator.clipboard.writeText(suiviUrl);
+                  toast.success('Copié');
+                }}
+              >
+                <Copy className="h-4 w-4" /> Copier
+              </Button>
+              <Button
+                className="flex-1"
+                onClick={() => window.open(suiviUrl, '_blank', 'noopener,noreferrer')}
+              >
+                <ExternalLink className="h-4 w-4" /> Ouvrir
+              </Button>
+              <Button variant="ghost" onClick={() => setSuiviUrl(null)}>
+                Fermer
               </Button>
             </div>
           </div>

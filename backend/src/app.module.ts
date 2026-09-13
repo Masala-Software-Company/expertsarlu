@@ -19,6 +19,11 @@ import { VersionModule } from './version/version.module';
 import { ProspectsModule } from './prospects/prospects.module';
 import { PatientsModule } from './patients/patients.module';
 import { ClientPortalModule } from './client-portal/client-portal.module';
+import { PartenairesModule } from './partenaires/partenaires.module';
+import { CommunicationsModule } from './communications/communications.module';
+import { InboxModule } from './inbox/inbox.module';
+import { JobsModule } from './jobs/jobs.module';
+import { PdfModule } from './pdf/pdf.module';
 import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
 import { PermissionsGuard } from './auth/guards/permissions.guard';
 import { AuditInterceptor } from './audit/audit.interceptor';
@@ -29,6 +34,7 @@ import { AuditInterceptor } from './audit/audit.interceptor';
     ThrottlerModule.forRoot([{ ttl: 60_000, limit: 120 }]),
     PrismaModule,
     StorageModule,
+    PdfModule,
     AuthModule,
     UsersModule,
     DossiersModule,
@@ -44,6 +50,10 @@ import { AuditInterceptor } from './audit/audit.interceptor';
     ProspectsModule,
     PatientsModule,
     ClientPortalModule,
+    PartenairesModule,
+    CommunicationsModule,
+    InboxModule,
+    JobsModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: ThrottlerGuard },

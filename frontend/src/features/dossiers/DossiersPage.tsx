@@ -70,6 +70,17 @@ export function DossiersPage() {
     onError: () => toast.error('Création impossible'),
   });
 
+  const moveKanban = useMutation({
+    mutationFn: async ({ id, statut }: { id: string; statut: string }) =>
+      (await api.patch(`/dossiers/${id}/statut`, { statut })).data,
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['dossiers'] });
+      toast.success('Statut mis à jour');
+    },
+    onError: (e: { response?: { data?: { message?: string } } }) =>
+      toast.error(e.response?.data?.message ?? 'Déplacement impossible'),
+  });
+
   const columns = useMemo(
     () => [
       columnHelper.accessor('numero', {
@@ -206,7 +217,19 @@ export function DossiersPage() {
       ) : (
         <div className="grid gap-4 lg:grid-cols-4">
           {columnsKanban.map((col) => (
-            <div key={col} className="rounded-2xl bg-surface p-3 shadow-soft border border-[var(--border)]">
+            <div
+              key={col}
+              className="rounded-2xl bg-surface p-3 shadow-soft border border-[var(--border)] min-h-[200px]"
+              onDragOver={(e) => e.preventDefault()}
+              onDrop={(e) => {
+                e.preventDefault();
+                const id = e.dataTransfer.getData('text/dossier-id');
+                const from = e.dataTransfer.getData('text/statut');
+                if (id && from !== col) {
+                  moveKanban.mutate({ id, statut: col });
+                }
+              }}
+            >
               <div className="mb-3 px-1 text-xs font-bold uppercase tracking-wide text-muted">
                 {STATUT_LABELS[col]}
               </div>
@@ -214,17 +237,23 @@ export function DossiersPage() {
                 {data
                   .filter((d) => d.statut === col)
                   .map((d) => (
-                    <Link
+                    <div
                       key={d.id}
-                      to={`/dossiers/${d.id}`}
-                      className="block rounded-xl border border-[var(--border)] bg-canvas p-3 transition-ui hover:border-brand/30"
+                      draggable={!d.verrouille}
+                      onDragStart={(e) => {
+                        e.dataTransfer.setData('text/dossier-id', d.id);
+                        e.dataTransfer.setData('text/statut', d.statut);
+                      }}
+                      className="rounded-xl border border-[var(--border)] bg-canvas p-3 transition-ui hover:border-brand/30 cursor-grab active:cursor-grabbing"
                     >
-                      <div className="font-semibold text-brand">{d.numero}</div>
+                      <Link to={`/dossiers/${d.id}`} className="font-semibold text-brand">
+                        {d.numero}
+                      </Link>
                       <div className="mt-1 text-sm">
                         {d.patient ? `${d.patient.prenom} ${d.patient.nom}` : 'Sans patient'}
                       </div>
                       <div className="mt-1 text-xs text-muted">{d.destination}</div>
-                    </Link>
+                    </div>
                   ))}
               </div>
             </div>

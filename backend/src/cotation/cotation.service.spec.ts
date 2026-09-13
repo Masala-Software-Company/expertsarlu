@@ -26,4 +26,9 @@ describe('calculerAssurance', () => {
       montantTotal: 260,
     });
   });
+
+  it('rejette un nombre de jours invalide', () => {
+    expect(() => calculerAssurance(0)).toThrow();
+    expect(() => calculerAssurance(-1)).toThrow();
+  });
 });

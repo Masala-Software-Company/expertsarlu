@@ -14,6 +14,11 @@ export class NotificationsController {
     return this.notifications.list(user.id);
   }
 
+  @Patch('lire-toutes')
+  markAll(@CurrentUser() user: AuthUser) {
+    return this.notifications.markAllRead(user.id);
+  }
+
   @Patch(':id/lu')
   markRead(@Param('id') id: string, @CurrentUser() user: AuthUser) {
     return this.notifications.markRead(id, user.id);

@@ -16,6 +16,8 @@ import {
   ChevronsLeft,
   ChevronsRight,
   UserRound,
+  Building2,
+  Inbox,
 } from 'lucide-react';
 import logoLight from '@/assets/logos/logo-light.jpg';
 import logoDark from '@/assets/logos/logo-dark.png';
@@ -24,6 +26,7 @@ import { useUiStore } from '@/lib/ui-store';
 import { ROLE_LABELS, cn, firstName } from '@/lib/utils';
 import { Button } from '@/components/ui/Button';
 import { UserAvatar } from '@/components/UserAvatar';
+import { NotificationBell } from '@/components/NotificationBell';
 import type { User } from '@/features/auth/auth-store';
 
 const NAV = [
@@ -33,6 +36,18 @@ const NAV = [
     to: '/prospects',
     label: 'Prospects',
     icon: Users,
+    roles: ['SUPER_ADMIN', 'SUPPORT_CLIENT', 'ASSISTANT_MANAGER'],
+  },
+  {
+    to: '/partenaires',
+    label: 'Partenaires',
+    icon: Building2,
+    roles: ['SUPER_ADMIN', 'SUPPORT_CLIENT', 'ASSISTANT_MANAGER'],
+  },
+  {
+    to: '/inbox',
+    label: 'Inbox',
+    icon: Inbox,
     roles: ['SUPER_ADMIN', 'SUPPORT_CLIENT', 'ASSISTANT_MANAGER'],
   },
   {
@@ -167,15 +182,18 @@ export function AppShell() {
               ⌘K
             </kbd>
           </button>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={toggleDark}
-            aria-label={dark ? 'Mode clair' : 'Mode sombre'}
-            title={dark ? 'Mode clair' : 'Mode sombre'}
-          >
-            {dark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
-          </Button>
+          <div className="flex items-center gap-1">
+            <NotificationBell />
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={toggleDark}
+              aria-label={dark ? 'Mode clair' : 'Mode sombre'}
+              title={dark ? 'Mode clair' : 'Mode sombre'}
+            >
+              {dark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+            </Button>
+          </div>
         </header>
         <main className="flex-1 overflow-auto p-6">
           <Outlet />

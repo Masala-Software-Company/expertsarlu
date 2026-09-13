@@ -8,14 +8,13 @@ import {
   Post,
   Query,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiProperty, ApiTags } from '@nestjs/swagger';
+import { IsString, MinLength } from 'class-validator';
 import { DossiersService } from './dossiers.service';
 import { CreateDossierDto } from './dto/create-dossier.dto';
 import { UpdateDossierDto } from './dto/update-dossier.dto';
 import { CurrentUser, AuthUser } from '../auth/current-user.decorator';
 import { RequirePermission, RequireRole } from '../auth/decorators';
-import { IsString, MinLength } from 'class-validator';
-import { ApiProperty } from '@nestjs/swagger';
 
 class MotifDto {
   @ApiProperty()
@@ -52,6 +51,31 @@ export class DossiersController {
   @RequireRole('SUPER_ADMIN', 'ASSISTANT_MANAGER')
   corbeille(@CurrentUser() user: AuthUser) {
     return this.dossiers.corbeille(user);
+  }
+
+  /** Routes statiques AVANT :id pour éviter les collisions Nest */
+  @Get('demandes-deverrouillage')
+  @RequireRole('SUPER_ADMIN', 'ASSISTANT_MANAGER')
+  listUnlock(@CurrentUser() user: AuthUser) {
+    return this.dossiers.listDemandesUnlock(user);
+  }
+
+  @Patch('demandes-deverrouillage/:demandeId/approuver')
+  @RequireRole('SUPER_ADMIN')
+  approuver(
+    @Param('demandeId') demandeId: string,
+    @CurrentUser() user: AuthUser,
+  ) {
+    return this.dossiers.approuverDeverrouillage(demandeId, user);
+  }
+
+  @Patch('demandes-deverrouillage/:demandeId/refuser')
+  @RequireRole('SUPER_ADMIN')
+  refuser(
+    @Param('demandeId') demandeId: string,
+    @CurrentUser() user: AuthUser,
+  ) {
+    return this.dossiers.refuserDeverrouillage(demandeId, user);
   }
 
   @Get(':id')
@@ -98,6 +122,32 @@ export class DossiersController {
     return this.dossiers.hardDelete(id, dto.confirmationNumero, user);
   }
 
+  @Patch(':id/statut')
+  @RequirePermission({ module: 'dossiers', action: 'update' })
+  changerStatut(
+    @Param('id') id: string,
+    @Body() dto: { statut: string },
+    @CurrentUser() user: AuthUser,
+  ) {
+    return this.dossiers.changerStatut(id, dto.statut as never, user);
+  }
+
+  @Post(':id/suivi-token')
+  @RequirePermission({ module: 'dossiers', action: 'read' })
+  suiviToken(@Param('id') id: string, @CurrentUser() user: AuthUser) {
+    return this.dossiers.ensureSuiviToken(id, user);
+  }
+
+  @Patch(':id/post-retour')
+  @RequirePermission({ module: 'dossiers', action: 'update' })
+  postRetour(
+    @Param('id') id: string,
+    @Body() dto: { postRetourStatut: string; postRetourNotes?: string },
+    @CurrentUser() user: AuthUser,
+  ) {
+    return this.dossiers.updatePostRetour(id, dto, user);
+  }
+
   @Post(':id/demande-deverrouillage')
   @RequirePermission({ module: 'dossiers', action: 'update' })
   demandeUnlock(
@@ -108,12 +158,9 @@ export class DossiersController {
     return this.dossiers.demandeDeverrouillage(id, dto.motif, user);
   }
 
-  @Patch('demandes-deverrouillage/:demandeId/approuver')
+  @Post(':id/deverrouiller')
   @RequireRole('SUPER_ADMIN')
-  approuver(
-    @Param('demandeId') demandeId: string,
-    @CurrentUser() user: AuthUser,
-  ) {
-    return this.dossiers.approuverDeverrouillage(demandeId, user);
+  unlockDirect(@Param('id') id: string, @CurrentUser() user: AuthUser) {
+    return this.dossiers.deverrouillerDirect(id, user);
   }
 }

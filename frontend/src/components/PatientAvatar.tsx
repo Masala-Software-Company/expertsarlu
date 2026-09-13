@@ -37,10 +37,14 @@ export function PatientAvatar({
       return;
     }
 
+    setSrc(null);
+    const bust = encodeURIComponent(photoProfil);
     void (async () => {
       try {
         const { data } = await api.get(`/patients/${patientId}/photo`, {
           responseType: 'blob',
+          params: { v: bust },
+          headers: { 'Cache-Control': 'no-cache' },
         });
         if (cancelled) return;
         objectUrl = URL.createObjectURL(data);

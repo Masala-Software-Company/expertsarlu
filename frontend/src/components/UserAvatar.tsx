@@ -23,14 +23,26 @@ export function UserAvatar({ userId, photoProfil, nom = '', size = 'md', classNa
   useEffect(() => {
     let objectUrl: string | null = null;
     let cancelled = false;
+    setSrc(null);
     if (!userId || !photoProfil) {
-      setSrc(null);
       return;
     }
+    const bust = `${encodeURIComponent(photoProfil)}-${Date.now()}`;
     void (async () => {
       try {
-        const { data } = await api.get(`/users/${userId}/photo`, { responseType: 'blob' });
+        const { data } = await api.get(`/users/${userId}/photo`, {
+          responseType: 'blob',
+          params: { v: bust },
+          headers: {
+            'Cache-Control': 'no-cache, no-store',
+            Pragma: 'no-cache',
+          },
+        });
         if (cancelled) return;
+        if (data.type && !data.type.startsWith('image/')) {
+          setSrc(null);
+          return;
+        }
         objectUrl = URL.createObjectURL(data);
         setSrc(objectUrl);
       } catch {

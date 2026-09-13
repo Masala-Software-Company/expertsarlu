@@ -126,7 +126,8 @@ export class UsersController {
     const meta = await this.users.getPhoto(id);
     if (!meta) throw new NotFoundException('Photo introuvable');
     res.setHeader('Content-Type', meta.mime);
-    res.setHeader('Cache-Control', 'private, max-age=3600');
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+    res.setHeader('Pragma', 'no-cache');
     meta.stream.pipe(res);
   }
 
