@@ -1,0 +1,13 @@
+# Config Railway à la racine du monorepo
+# (si Root Directory reste vide, Railpack utilise ces commandes)
+
+[build]
+builder = "RAILPACK"
+buildCommand = "pnpm install --no-frozen-lockfile && pnpm --filter @expert/backend build"
+
+[deploy]
+startCommand = "pnpm --filter @expert/backend start:prod"
+healthcheckPath = "/health"
+healthcheckTimeout = 120
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 5
