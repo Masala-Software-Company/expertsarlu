@@ -68,6 +68,7 @@ enum TypeLigneCotation {
 enum StatutFacture {
   BROUILLON
   ENVOYE
+  ACCEPTE
   PAYE
   ANNULE
 }
@@ -132,6 +133,7 @@ model User {
   demandesTraitees        DemandeDeverrouillage[] @relation("Traiteur")
   notifications           Notification[]
   refreshTokens           RefreshToken[]
+  communications          Communication[]
 
   @@map("users")
 }
@@ -172,6 +174,10 @@ model Dossier {
   budget                  Decimal?      @db.Decimal(12, 2)
   priorite                Priorite      @default(NORMALE)
   notes                   String?
+  suiviToken              String?       @unique @map("suivi_token")
+  postRetourStatut        String?       @map("post_retour_statut") // EN_ATTENTE | RENTRE | SUIVI | CLOS
+  postRetourNotes         String?       @map("post_retour_notes")
+  postRetourLe            DateTime?     @map("post_retour_le")
   creeParId               String        @map("cree_par_id")
   valideParId             String?       @map("valide_par_id")
   supprimeLe              DateTime?     @map("supprime_le")
@@ -191,6 +197,7 @@ model Dossier {
   tachesLogistique  TacheLogistique[]
   rendezVous        RendezVous[]
   demandesUnlock    DemandeDeverrouillage[]
+  communications    Communication[]
 
   @@index([statut])
   @@index([creeParId])
@@ -342,6 +349,10 @@ model Facture {
   dateEncaissement DateTime?     @map("date_encaissement")
   genereParId      String        @map("genere_par_id")
   version          Int           @default(1)
+  signeLe          DateTime?     @map("signe_le")
+  signeParNom      String?       @map("signe_par_nom")
+  signatureToken   String?       @unique @map("signature_token")
+  pdfChemin        String?       @map("pdf_chemin")
   creeLe           DateTime      @default(now()) @map("cree_le")
 
   dossier   Dossier    @relation(fields: [dossierId], references: [id], onDelete: Cascade)
@@ -457,6 +468,38 @@ model Notification {
 
   @@index([userId, lu])
   @@map("notifications")
+}
+
+model Communication {
+  id         String   @id @default(cuid())
+  dossierId  String   @map("dossier_id")
+  canal      String   // EMAIL | WHATSAPP | INTERNE | APPEL
+  sens       String   @default("SORTANT") // ENTRANT | SORTANT
+  sujet      String?
+  corps      String
+  auteurId   String?  @map("auteur_id")
+  auteurNom  String?  @map("auteur_nom")
+  creeLe     DateTime @default(now()) @map("cree_le")
+
+  dossier Dossier @relation(fields: [dossierId], references: [id], onDelete: Cascade)
+  auteur  User?   @relation(fields: [auteurId], references: [id])
+
+  @@index([dossierId])
+  @@map("communications")
+}
+
+model InboxMessage {
+  id        String   @id @default(cuid())
+  canal     String   // EMAIL | WHATSAPP
+  fromAddr  String   @map("from_addr")
+  sujet     String?
+  corps     String
+  dossierId String?  @map("dossier_id")
+  lu        Boolean  @default(false)
+  creeLe    DateTime @default(now()) @map("cree_le")
+
+  @@index([lu])
+  @@map("inbox_messages")
 }
 
 model AppVersion {
