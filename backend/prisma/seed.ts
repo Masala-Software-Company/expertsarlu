@@ -98,7 +98,14 @@ async function seedAdmin() {
     where: { email: { not: 'admin@expert.sarlu' } },
   });
 
-  const hashPassword = await argon2.hash('Expert2026!');
+  const seedPassword = process.env.SEED_ADMIN_PASSWORD?.trim();
+  if (!seedPassword || seedPassword.length < 8) {
+    throw new Error(
+      'SEED_ADMIN_PASSWORD manquant ou trop court (min. 8). Définis-le dans backend/.env avant de lancer le seed.',
+    );
+  }
+
+  const hashPassword = await argon2.hash(seedPassword);
   await prisma.user.upsert({
     where: { email: 'admin@expert.sarlu' },
     create: {

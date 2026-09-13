@@ -51,7 +51,8 @@ pnpm --filter @expert/frontend dev          # navigateur :1420
 pnpm --filter @expert/frontend tauri:dev    # desktop natif
 ```
 
-Comptes démo (mdp `Expert2026!`) : `admin@expert.sarlu`, `nathan@…`, `emmanuelle@…`, `ketsia@…`, `jephte@…`, `grace@…`
+Comptes : le Super Admin est créé par le seed (`admin@expert.sarlu`).  
+Le mot de passe est **uniquement** dans `SEED_ADMIN_PASSWORD` (fichier `.env` local / variables Railway) — jamais dans le dépôt.
 
 ---
 

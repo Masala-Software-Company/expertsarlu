@@ -9,12 +9,14 @@ GET http://localhost:3000/api/version/latest
 
 ### Login Super Admin
 # @name login
+# Définis @password localement (ne pas committer de vrai mot de passe)
+@password = REPLACE_WITH_SEED_ADMIN_PASSWORD
 POST http://localhost:3000/api/auth/login
 Content-Type: application/json
 
 {
   "email": "admin@expert.sarlu",
-  "password": "Expert2026!"
+  "password": "{{password}}"
 }
 
 ### Me
