@@ -54,11 +54,43 @@ export function UsersPage() {
     [members, selectedId],
   );
 
+  // Ne dépend que de selectedId : un refetch (ex. après photo) ne doit pas
+  // écraser le nom / rôle en cours de saisie.
   useEffect(() => {
-    if (selected) {
-      setEdit({ nom: selected.nom, role: selected.role, password: '' });
+    if (!selectedId) {
+      setConfirmDelete(false);
+      return;
     }
-  }, [selected]);
+    const m = members.find((x) => x.id === selectedId);
+    if (m) setEdit({ nom: m.nom, role: m.role, password: '' });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- sync only when opening a member
+  }, [selectedId]);
+
+  const syncMe = async (updated: Member) => {
+    if (me?.id !== updated.id) return;
+    try {
+      const { data } = await api.get<{
+        nom: string;
+        role: string;
+        photoProfil?: string | null;
+        permissions?: { module: string; action: string }[];
+      }>('/auth/me');
+      setUser({
+        ...me,
+        nom: data.nom,
+        role: data.role,
+        photoProfil: data.photoProfil ?? updated.photoProfil,
+        permissions: data.permissions ?? me.permissions,
+      });
+    } catch {
+      setUser({
+        ...me,
+        nom: updated.nom,
+        role: updated.role,
+        photoProfil: updated.photoProfil,
+      });
+    }
+  };
 
   const create = useMutation({
     mutationFn: async () => (await api.post('/users', form)).data as Member,
@@ -76,18 +108,21 @@ export function UsersPage() {
 
   const saveProfile = useMutation({
     mutationFn: async () => {
-      if (!selected) return;
-      const body: Record<string, string> = { nom: edit.nom, role: edit.role };
+      if (!selected) throw new Error('Aucun membre sélectionné');
+      const body: Record<string, string> = {
+        nom: edit.nom.trim(),
+        role: edit.role,
+      };
       if (edit.password.trim()) body.password = edit.password.trim();
       return (await api.patch(`/users/${selected.id}`, body)).data as Member;
     },
-    onSuccess: (updated) => {
+    onSuccess: async (updated) => {
+      if (!updated) return;
+      await syncMe(updated);
       void qc.invalidateQueries({ queryKey: ['users'] });
-      if (updated && me?.id === updated.id) {
-        setUser({ ...me, nom: updated.nom, role: updated.role, photoProfil: updated.photoProfil });
-      }
       toast.success('Profil enregistré');
-      setEdit((e) => ({ ...e, password: '' }));
+      setConfirmDelete(false);
+      setSelectedId(null);
     },
     onError: (err: { response?: { data?: { message?: string | string[] }; status?: number } }) => {
       const msg = err.response?.data?.message;
@@ -130,11 +165,10 @@ export function UsersPage() {
       fd.append('file', file);
       return (await api.post(`/users/${selected.id}/photo`, fd)).data as Member;
     },
-    onSuccess: (updated) => {
+    onSuccess: async (updated) => {
+      if (!updated) return;
+      await syncMe(updated);
       void qc.invalidateQueries({ queryKey: ['users'] });
-      if (updated && me?.id === updated.id) {
-        setUser({ ...me, photoProfil: updated.photoProfil });
-      }
       toast.success('Photo mise à jour');
     },
     onError: (err: { response?: { data?: { message?: string | string[] }; status?: number } }) => {

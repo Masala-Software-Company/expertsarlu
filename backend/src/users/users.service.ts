@@ -164,11 +164,12 @@ export class UsersService {
       ? await argon2.hash(data.password)
       : undefined;
 
+    const nom = data.nom?.trim();
     return this.prisma.user.update({
       where: { id },
       data: {
-        nom: data.nom?.trim(),
-        role: data.role,
+        ...(nom ? { nom } : {}),
+        ...(data.role ? { role: data.role } : {}),
         ...(hashPassword ? { hashPassword } : {}),
       },
       select: userSelect,

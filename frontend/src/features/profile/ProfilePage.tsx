@@ -20,12 +20,30 @@ export function ProfilePage() {
   }, [user?.nom]);
 
   const saveNom = useMutation({
-    mutationFn: async () => (await api.patch('/users/me', { nom })).data,
-    onSuccess: (data) => {
-      if (user) setUser({ ...user, nom: data.nom });
+    mutationFn: async () =>
+      (await api.patch('/users/me', { nom: nom.trim() })).data as { nom: string },
+    onSuccess: async (data) => {
+      try {
+        const me = await api.get('/auth/me');
+        if (user) {
+          setUser({
+            ...user,
+            nom: me.data.nom ?? data.nom,
+            photoProfil: me.data.photoProfil ?? user.photoProfil,
+            permissions: me.data.permissions ?? user.permissions,
+          });
+        }
+      } catch {
+        if (user) setUser({ ...user, nom: data.nom });
+      }
       toast.success('Nom enregistré');
     },
-    onError: () => toast.error('Impossible d’enregistrer le nom'),
+    onError: (err: { response?: { data?: { message?: string | string[] } } }) => {
+      const msg = err.response?.data?.message;
+      toast.error(
+        (Array.isArray(msg) ? msg.join(', ') : msg) || 'Impossible d’enregistrer le nom',
+      );
+    },
   });
 
   const savePassword = useMutation({

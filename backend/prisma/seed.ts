@@ -108,13 +108,13 @@ async function seedAdmin() {
       hashPassword,
     },
     update: {
-      nom: 'Admin',
+      // Ne pas écraser le nom personnalisé déjà enregistré
       role: 'SUPER_ADMIN',
       hashPassword,
       actif: true,
     },
   });
-  console.log('Demo data purged. Super Admin only (admin@expert.sarlu) — mettez votre vrai nom dans Profil');
+  console.log('Demo data purged. Super Admin only (admin@expert.sarlu)');
 }
 
 async function seedTarifs() {
