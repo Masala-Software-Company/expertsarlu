@@ -1,0 +1,468 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum RoleName {
+  SUPER_ADMIN
+  ASSISTANT_MANAGER
+  SUPPORT_CLIENT
+  CAISSE_ADMIN
+  PROTOCOLE
+}
+
+enum DossierStatut {
+  BROUILLON
+  EN_COURS
+  VALIDE
+  FACTURE_PAYE
+  VERROUILLE
+  ARCHIVE_SUPPRIME
+}
+
+enum TypeClient {
+  PARTICULIER
+  INSTITUTION
+}
+
+enum Priorite {
+  NORMALE
+  URGENTE
+  CRITIQUE
+}
+
+enum ProspectStatut {
+  NOUVEAU
+  EN_DISCUSSION
+  CONVERTI
+  PERDU
+}
+
+enum TypeRendezVous {
+  AMBASSADE
+  HOPITAL
+  NAVETTE
+}
+
+enum StatutRendezVous {
+  PLANIFIE
+  CONFIRME
+  TERMINE
+  ANNULE
+}
+
+enum TypeLigneCotation {
+  NAVETTE
+  TRANSFERT
+  AMBULANCE
+  ASSURANCE
+  ACCOMPAGNATEUR
+  FRAIS_ANNEXE
+  FORFAIT_TRAITEMENT
+}
+
+enum StatutFacture {
+  BROUILLON
+  ENVOYE
+  PAYE
+  ANNULE
+}
+
+enum MethodePaiement {
+  ESPECES
+  VIREMENT
+  CARTE
+  MOBILE_MONEY
+  AUTRE
+}
+
+enum CategorieDocument {
+  IDENTITE
+  MEDICAL
+  LOGISTIQUE
+  FACTURATION
+  AUTRE
+}
+
+enum TypeTacheLogistique {
+  VISA
+  NAVETTE
+  VOL
+  AUTRE
+}
+
+enum StatutTache {
+  A_FAIRE
+  EN_COURS
+  TERMINE
+  BLOQUE
+}
+
+enum StatutDeverrouillage {
+  EN_ATTENTE
+  APPROUVE
+  REFUSE
+  EXPIRE
+}
+
+model User {
+  id           String   @id @default(cuid())
+  nom          String
+  email        String   @unique
+  hashPassword String   @map("hash_password")
+  role         RoleName
+  actif        Boolean  @default(true)
+  creeLe       DateTime @default(now()) @map("cree_le")
+  majLe        DateTime @updatedAt @map("maj_le")
+
+  dossiersCrees           Dossier[]              @relation("DossierCreateur")
+  dossiersValides         Dossier[]              @relation("DossierValidateur")
+  dossiersSupprimes       Dossier[]              @relation("DossierSuppresseur")
+  rendezVousAssignes      RendezVous[]
+  tachesAssignees         TacheLogistique[]
+  documentsUploades       DocumentGED[]
+  facturesGenerees        Facture[]
+  auditLogs               AuditLog[]
+  demandesDeverrouillage  DemandeDeverrouillage[] @relation("Demandeur")
+  demandesTraitees        DemandeDeverrouillage[] @relation("Traiteur")
+  notifications           Notification[]
+  refreshTokens           RefreshToken[]
+
+  @@map("users")
+}
+
+model RefreshToken {
+  id        String   @id @default(cuid())
+  tokenHash String   @map("token_hash")
+  userId    String   @map("user_id")
+  expiresAt DateTime @map("expires_at")
+  creeLe    DateTime @default(now()) @map("cree_le")
+  revoque   Boolean  @default(false)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("refresh_tokens")
+}
+
+model Permission {
+  id     String @id @default(cuid())
+  module String
+  action String
+  role   RoleName
+
+  @@unique([role, module, action])
+  @@map("permissions")
+}
+
+model Dossier {
+  id                      String        @id @default(cuid())
+  numero                  String        @unique
+  typeClient              TypeClient    @map("type_client")
+  statut                  DossierStatut @default(BROUILLON)
+  statutAvantSuppression  DossierStatut? @map("statut_avant_suppression")
+  verrouille              Boolean       @default(false)
+  destination             String?
+  pathologie              String?
+  budget                  Decimal?      @db.Decimal(12, 2)
+  priorite                Priorite      @default(NORMALE)
+  notes                   String?
+  creeParId               String        @map("cree_par_id")
+  valideParId             String?       @map("valide_par_id")
+  supprimeLe              DateTime?     @map("supprime_le")
+  supprimeParId           String?       @map("supprime_par_id")
+  creeLe                  DateTime      @default(now()) @map("cree_le")
+  majLe                   DateTime      @updatedAt @map("maj_le")
+
+  creePar           User                    @relation("DossierCreateur", fields: [creeParId], references: [id])
+  validePar         User?                   @relation("DossierValidateur", fields: [valideParId], references: [id])
+  supprimePar       User?                   @relation("DossierSuppresseur", fields: [supprimeParId], references: [id])
+  patient           Patient?
+  accompagnateurs   Accompagnateur[]
+  lignesCotation    LigneCotation[]
+  calculAssurance   CalculAssurance?
+  factures          Facture[]
+  documents         DocumentGED[]
+  tachesLogistique  TacheLogistique[]
+  rendezVous        RendezVous[]
+  demandesUnlock    DemandeDeverrouillage[]
+
+  @@index([statut])
+  @@index([creeParId])
+  @@map("dossiers")
+}
+
+/// Séquence annuelle pour MED-YYYY-XXXX (évite les doublons concurrents)
+model DossierSequence {
+  annee  Int @id
+  dernier Int @default(0)
+
+  @@map("dossier_sequences")
+}
+
+model Patient {
+  id              String   @id @default(cuid())
+  dossierId       String   @unique @map("dossier_id")
+  nom             String
+  prenom          String
+  dateNaissance   DateTime? @map("date_naissance")
+  nationalite     String?
+  telephone       String?
+  email           String?
+  adresse         String?
+  documentIdentite String? @map("document_identite")
+  creeLe          DateTime @default(now()) @map("cree_le")
+
+  dossier Dossier @relation(fields: [dossierId], references: [id], onDelete: Cascade)
+
+  @@map("patients")
+}
+
+model Accompagnateur {
+  id        String   @id @default(cuid())
+  dossierId String   @map("dossier_id")
+  nom       String
+  prenom    String
+  lien      String?
+  telephone String?
+  creeLe    DateTime @default(now()) @map("cree_le")
+
+  dossier Dossier @relation(fields: [dossierId], references: [id], onDelete: Cascade)
+
+  @@index([dossierId])
+  @@map("accompagnateurs")
+}
+
+model Prospect {
+  id            String         @id @default(cuid())
+  nom           String
+  prenom        String?
+  telephone     String?
+  email         String?
+  sourceContact String?        @map("source_contact")
+  statut        ProspectStatut @default(NOUVEAU)
+  notes         String?
+  creeLe        DateTime       @default(now()) @map("cree_le")
+  majLe         DateTime       @updatedAt @map("maj_le")
+
+  @@map("prospects")
+}
+
+model Partenaire {
+  id        String   @id @default(cuid())
+  nom       String
+  pays      String?
+  type      String?
+  contact   String?
+  email     String?
+  telephone String?
+  notes     String?
+  creeLe    DateTime @default(now()) @map("cree_le")
+
+  @@map("partenaires")
+}
+
+model RendezVous {
+  id         String            @id @default(cuid())
+  dossierId  String?           @map("dossier_id")
+  type       TypeRendezVous
+  dateHeure  DateTime          @map("date_heure")
+  lieu       String?
+  statut     StatutRendezVous  @default(PLANIFIE)
+  notes      String?
+  assigneAId String?           @map("assigne_a_id")
+  creeLe     DateTime          @default(now()) @map("cree_le")
+
+  dossier  Dossier? @relation(fields: [dossierId], references: [id], onDelete: Cascade)
+  assigneA User?    @relation(fields: [assigneAId], references: [id])
+
+  @@index([dossierId])
+  @@index([dateHeure])
+  @@map("rendez_vous")
+}
+
+model LigneCotation {
+  id          String            @id @default(cuid())
+  dossierId   String            @map("dossier_id")
+  type        TypeLigneCotation
+  description String
+  montant     Decimal           @db.Decimal(12, 2)
+  devise      String            @default("USD")
+  quantite    Int               @default(1)
+  creeLe      DateTime          @default(now()) @map("cree_le")
+
+  dossier Dossier @relation(fields: [dossierId], references: [id], onDelete: Cascade)
+
+  @@index([dossierId])
+  @@map("lignes_cotation")
+}
+
+model CalculAssurance {
+  id           String   @id @default(cuid())
+  dossierId    String   @unique @map("dossier_id")
+  jours        Int
+  tarifApplique Decimal @map("tarif_applique") @db.Decimal(8, 2)
+  montantTotal Decimal  @map("montant_total") @db.Decimal(12, 2)
+  creeLe       DateTime @default(now()) @map("cree_le")
+  majLe        DateTime @updatedAt @map("maj_le")
+
+  dossier Dossier @relation(fields: [dossierId], references: [id], onDelete: Cascade)
+
+  @@map("calculs_assurance")
+}
+
+model TarifBase {
+  id        String   @id @default(cuid())
+  cle       String   @unique
+  libelle   String
+  montant   Decimal  @db.Decimal(12, 2)
+  devise    String   @default("USD")
+  unite     String?
+  majLe     DateTime @updatedAt @map("maj_le")
+  creeLe    DateTime @default(now()) @map("cree_le")
+
+  @@map("tarifs_base")
+}
+
+model Facture {
+  id               String        @id @default(cuid())
+  numero           String        @unique
+  dossierId        String        @map("dossier_id")
+  type             String        @default("DEVIS") // DEVIS | FACTURE
+  statut           StatutFacture @default(BROUILLON)
+  montantTotal     Decimal       @map("montant_total") @db.Decimal(12, 2)
+  devise           String        @default("USD")
+  dateEncaissement DateTime?     @map("date_encaissement")
+  genereParId      String        @map("genere_par_id")
+  version          Int           @default(1)
+  creeLe           DateTime      @default(now()) @map("cree_le")
+
+  dossier   Dossier    @relation(fields: [dossierId], references: [id], onDelete: Cascade)
+  generePar User       @relation(fields: [genereParId], references: [id])
+  paiements Paiement[]
+
+  @@index([dossierId])
+  @@map("factures")
+}
+
+model Paiement {
+  id        String          @id @default(cuid())
+  factureId String          @map("facture_id")
+  montant   Decimal         @db.Decimal(12, 2)
+  methode   MethodePaiement
+  date      DateTime        @default(now())
+  reference String?
+  valide    Boolean         @default(false)
+  creeLe    DateTime        @default(now()) @map("cree_le")
+
+  facture Facture @relation(fields: [factureId], references: [id], onDelete: Cascade)
+
+  @@index([factureId])
+  @@map("paiements")
+}
+
+model DocumentGED {
+  id             String            @id @default(cuid())
+  dossierId      String            @map("dossier_id")
+  categorie      CategorieDocument
+  nomFichier     String            @map("nom_fichier")
+  cheminStockage String            @map("chemin_stockage")
+  mimeType       String?           @map("mime_type")
+  tailleOctets   Int?              @map("taille_octets")
+  uploadeParId   String            @map("uploade_par_id")
+  creeLe         DateTime          @default(now()) @map("cree_le")
+
+  dossier    Dossier @relation(fields: [dossierId], references: [id], onDelete: Cascade)
+  uploadePar User    @relation(fields: [uploadeParId], references: [id])
+
+  @@index([dossierId])
+  @@map("documents_ged")
+}
+
+model TacheLogistique {
+  id         String             @id @default(cuid())
+  dossierId  String             @map("dossier_id")
+  type       TypeTacheLogistique
+  titre      String
+  statut     StatutTache        @default(A_FAIRE)
+  assigneAId String?            @map("assigne_a_id")
+  echeance   DateTime?
+  notes      String?
+  historique Json?
+  creeLe     DateTime           @default(now()) @map("cree_le")
+  majLe      DateTime           @updatedAt @map("maj_le")
+
+  dossier  Dossier @relation(fields: [dossierId], references: [id], onDelete: Cascade)
+  assigneA User?   @relation(fields: [assigneAId], references: [id])
+
+  @@index([dossierId])
+  @@map("taches_logistique")
+}
+
+model AuditLog {
+  id             String   @id @default(cuid())
+  timestamp      DateTime @default(now())
+  userId         String?  @map("user_id")
+  action         String
+  tableCible     String   @map("table_cible")
+  recordId       String?  @map("record_id")
+  ancienneValeur Json?    @map("ancienne_valeur")
+  nouvelleValeur Json?    @map("nouvelle_valeur")
+  ip             String?
+  userAgent      String?  @map("user_agent")
+
+  user User? @relation(fields: [userId], references: [id])
+
+  @@index([tableCible, recordId])
+  @@index([timestamp])
+  @@map("audit_logs")
+}
+
+model DemandeDeverrouillage {
+  id           String               @id @default(cuid())
+  dossierId    String               @map("dossier_id")
+  demandeParId String               @map("demande_par_id")
+  traiteParId  String?              @map("traite_par_id")
+  motif        String
+  statut       StatutDeverrouillage @default(EN_ATTENTE)
+  expireLe     DateTime?            @map("expire_le")
+  creeLe       DateTime             @default(now()) @map("cree_le")
+  traiteLe     DateTime?            @map("traite_le")
+
+  dossier    Dossier @relation(fields: [dossierId], references: [id], onDelete: Cascade)
+  demandePar User    @relation("Demandeur", fields: [demandeParId], references: [id])
+  traitePar  User?   @relation("Traiteur", fields: [traiteParId], references: [id])
+
+  @@index([dossierId])
+  @@map("demandes_deverrouillage")
+}
+
+model Notification {
+  id     String   @id @default(cuid())
+  userId String   @map("user_id")
+  type   String
+  lu     Boolean  @default(false)
+  titre  String
+  payload Json?
+  creeLe DateTime @default(now()) @map("cree_le")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, lu])
+  @@map("notifications")
+}
+
+model AppVersion {
+  id        String   @id @default(cuid())
+  version   String   @unique
+  changelog String?
+  driveUrl  String?  @map("drive_url")
+  actif     Boolean  @default(true)
+  creeLe    DateTime @default(now()) @map("cree_le")
+
+  @@map("app_versions")
+}

@@ -1,0 +1,50 @@
+# eXpert API — exemples d'endpoints
+# Base: http://localhost:3000/api
+
+### Health (hors préfixe api)
+GET http://localhost:3000/health
+
+### Version latest
+GET http://localhost:3000/api/version/latest
+
+### Login Super Admin
+# @name login
+POST http://localhost:3000/api/auth/login
+Content-Type: application/json
+
+{
+  "email": "admin@expert.sarlu",
+  "password": "Expert2026!"
+}
+
+### Me
+GET http://localhost:3000/api/auth/me
+Authorization: Bearer {{login.response.body.accessToken}}
+
+### Liste dossiers
+GET http://localhost:3000/api/dossiers
+Authorization: Bearer {{login.response.body.accessToken}}
+
+### Créer dossier
+POST http://localhost:3000/api/dossiers
+Authorization: Bearer {{login.response.body.accessToken}}
+Content-Type: application/json
+
+{
+  "typeClient": "PARTICULIER",
+  "destination": "Inde — New Delhi",
+  "pathologie": "Cardiologie",
+  "priorite": "NORMALE",
+  "patient": {
+    "nom": "Test",
+    "prenom": "Patient",
+    "telephone": "+243800000000"
+  },
+  "accompagnateurs": [
+    { "nom": "Test", "prenom": "Accompagnant", "lien": "Frère" }
+  ]
+}
+
+### Tarification (Super Admin)
+GET http://localhost:3000/api/tarification
+Authorization: Bearer {{login.response.body.accessToken}}

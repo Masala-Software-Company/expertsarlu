@@ -1,0 +1,21 @@
+{
+  "name": "expert-sarlu",
+  "private": true,
+  "version": "1.0.0",
+  "description": "eXpert SARLU — Bureau de Coordination Médicale Internationale",
+  "scripts": {
+    "dev": "pnpm --parallel --filter @expert/api --filter @expert/desktop dev",
+    "dev:api": "pnpm --filter @expert/api dev",
+    "dev:desktop": "pnpm --filter @expert/desktop dev",
+    "dev:db": "bash scripts/dev-db.sh",
+    "build": "pnpm --filter @expert/api build && pnpm --filter @expert/desktop build",
+    "build:tauri": "pnpm --filter @expert/desktop tauri:build",
+    "db:migrate": "pnpm --filter @expert/api prisma:migrate",
+    "db:seed": "pnpm --filter @expert/api prisma:seed",
+    "db:generate": "pnpm --filter @expert/api prisma:generate"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "packageManager": "pnpm@9.15.0"
+}

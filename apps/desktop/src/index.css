@@ -1,0 +1,27 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --brand: #144eb9;
+  --ink: #0a0a0a;
+  --canvas: #f7f8fa;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+  background: var(--canvas);
+  color: var(--ink);
+}
+
+@layer utilities {
+  .transition-ui {
+    @apply transition-all duration-[180ms] ease-out;
+  }
+}
