@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { api } from '@/lib/api';
 import { useAuthStore } from '@/features/auth/auth-store';
 import { ROLE_LABELS, STATUT_LABELS, formatMoney } from '@/lib/utils';
+import { PatientAvatar } from '@/components/PatientAvatar';
 
 type Dossier = {
   id: string;
@@ -10,7 +11,12 @@ type Dossier = {
   statut: string;
   destination?: string;
   priorite: string;
-  patient?: { nom: string; prenom: string };
+  patient?: {
+    id: string;
+    nom: string;
+    prenom: string;
+    photoProfil?: string | null;
+  };
   lignesCotation?: { montant: string | number }[];
 };
 
@@ -36,7 +42,7 @@ export function DashboardPage() {
         <h1 className="text-3xl font-extrabold tracking-tight">
           Bonjour{user ? `, ${user.nom.split(' ')[0]}` : ''}
         </h1>
-        <p className="mt-1 text-black/50">
+        <p className="mt-1 text-muted">
           {user ? ROLE_LABELS[user.role] : ''} — vue d’ensemble du pipeline médical
         </p>
       </div>
@@ -48,8 +54,8 @@ export function DashboardPage() {
           { label: 'Validés / verrouillés', value: valides },
           { label: 'Priorité haute', value: urgents },
         ].map((c) => (
-          <div key={c.label} className="rounded-2xl bg-white p-5 shadow-soft border border-black/[0.03]">
-            <div className="text-sm text-black/45">{c.label}</div>
+          <div key={c.label} className="rounded-2xl bg-surface p-5 shadow-soft border border-[var(--border)]">
+            <div className="text-sm text-muted">{c.label}</div>
             <div className="mt-2 text-3xl font-extrabold text-brand">
               {isLoading ? '—' : c.value}
             </div>
@@ -61,6 +67,12 @@ export function DashboardPage() {
         <div className="rounded-2xl bg-ink p-6 text-white shadow-soft">
           <div className="text-sm text-white/60">Pipeline financier (lignes de cotation)</div>
           <div className="mt-2 text-3xl font-extrabold">{formatMoney(totalCotation)}</div>
+          <p className="mt-3 text-xs text-white/50">
+            Lien portail patient (à envoyer WhatsApp / e-mail) :{' '}
+            <Link className="underline text-white" to="/portail">
+              /portail
+            </Link>
+          </p>
         </div>
       )}
 
@@ -71,9 +83,9 @@ export function DashboardPage() {
             Voir tout
           </Link>
         </div>
-        <div className="overflow-hidden rounded-2xl border border-black/5 bg-white shadow-soft">
+        <div className="overflow-hidden rounded-2xl border border-[var(--border)] bg-surface shadow-soft">
           <table className="w-full text-sm">
-            <thead className="bg-canvas text-left text-xs uppercase tracking-wide text-black/40">
+            <thead className="bg-canvas text-left text-xs uppercase tracking-wide text-muted">
               <tr>
                 <th className="px-4 py-3">N°</th>
                 <th className="px-4 py-3">Patient</th>
@@ -83,14 +95,29 @@ export function DashboardPage() {
             </thead>
             <tbody>
               {dossiers.slice(0, 6).map((d) => (
-                <tr key={d.id} className="border-t border-black/5 hover:bg-brand/[0.03]">
+                <tr key={d.id} className="border-t border-[var(--border)] hover:bg-brand/[0.03]">
                   <td className="px-4 py-3">
                     <Link to={`/dossiers/${d.id}`} className="font-semibold text-brand">
                       {d.numero}
                     </Link>
                   </td>
                   <td className="px-4 py-3">
-                    {d.patient ? `${d.patient.prenom} ${d.patient.nom}` : '—'}
+                    {d.patient ? (
+                      <div className="flex items-center gap-2.5">
+                        <PatientAvatar
+                          patientId={d.patient.id}
+                          photoProfil={d.patient.photoProfil}
+                          prenom={d.patient.prenom}
+                          nom={d.patient.nom}
+                          size="sm"
+                        />
+                        <span>
+                          {d.patient.prenom} {d.patient.nom}
+                        </span>
+                      </div>
+                    ) : (
+                      '—'
+                    )}
                   </td>
                   <td className="px-4 py-3">{d.destination ?? '—'}</td>
                   <td className="px-4 py-3">{STATUT_LABELS[d.statut] ?? d.statut}</td>
@@ -98,7 +125,7 @@ export function DashboardPage() {
               ))}
               {!isLoading && dossiers.length === 0 && (
                 <tr>
-                  <td colSpan={4} className="px-4 py-10 text-center text-black/40">
+                  <td colSpan={4} className="px-4 py-10 text-center text-muted">
                     Aucun dossier pour le moment
                   </td>
                 </tr>

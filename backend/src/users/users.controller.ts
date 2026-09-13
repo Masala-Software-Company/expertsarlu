@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Post } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post } from '@nestjs/common';
 import { ApiBearerAuth, ApiProperty, ApiTags } from '@nestjs/swagger';
 import { IsEmail, IsEnum, IsBoolean, IsString, MinLength } from 'class-validator';
 import { RoleName } from '@prisma/client';
@@ -25,6 +25,12 @@ class CreateUserDto {
   role!: RoleName;
 }
 
+class UpdateRoleDto {
+  @ApiProperty({ enum: RoleName })
+  @IsEnum(RoleName)
+  role!: RoleName;
+}
+
 class ActifDto {
   @ApiProperty()
   @IsBoolean()
@@ -38,6 +44,11 @@ class ActifDto {
 export class UsersController {
   constructor(private users: UsersService) {}
 
+  @Get('roles')
+  listRoles() {
+    return this.users.listRoles();
+  }
+
   @Get()
   list() {
     return this.users.list();
@@ -48,6 +59,15 @@ export class UsersController {
     return this.users.create(dto);
   }
 
+  @Patch(':id/role')
+  updateRole(
+    @Param('id') id: string,
+    @Body() dto: UpdateRoleDto,
+    @CurrentUser() user: AuthUser,
+  ) {
+    return this.users.updateRole(id, dto.role, user);
+  }
+
   @Patch(':id/actif')
   setActif(
     @Param('id') id: string,
@@ -55,5 +75,10 @@ export class UsersController {
     @CurrentUser() user: AuthUser,
   ) {
     return this.users.setActif(id, dto.actif, user);
+  }
+
+  @Delete(':id')
+  remove(@Param('id') id: string, @CurrentUser() user: AuthUser) {
+    return this.users.remove(id, user);
   }
 }

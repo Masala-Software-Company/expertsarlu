@@ -54,6 +54,7 @@ export class DossiersService {
                 telephone: dto.patient.telephone,
                 email: dto.patient.email,
                 adresse: dto.patient.adresse,
+                numeroPasseport: dto.patient.numeroPasseport,
               },
             }
           : undefined,

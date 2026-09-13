@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { persist } from 'zustand/middleware';
 
 type UiState = {
   sidebarCollapsed: boolean;
@@ -7,18 +8,34 @@ type UiState = {
   toggleSidebar: () => void;
   toggleDark: () => void;
   setCommandOpen: (open: boolean) => void;
+  syncDom: () => void;
 };
 
-export const useUiStore = create<UiState>((set) => ({
-  sidebarCollapsed: false,
-  dark: false,
-  commandOpen: false,
-  toggleSidebar: () => set((s) => ({ sidebarCollapsed: !s.sidebarCollapsed })),
-  toggleDark: () =>
-    set((s) => {
-      const dark = !s.dark;
-      document.documentElement.classList.toggle('dark', dark);
-      return { dark };
+function applyDarkClass(dark: boolean) {
+  document.documentElement.classList.toggle('dark', dark);
+}
+
+export const useUiStore = create<UiState>()(
+  persist(
+    (set, get) => ({
+      sidebarCollapsed: false,
+      dark: false,
+      commandOpen: false,
+      toggleSidebar: () => set((s) => ({ sidebarCollapsed: !s.sidebarCollapsed })),
+      toggleDark: () => {
+        const dark = !get().dark;
+        applyDarkClass(dark);
+        set({ dark });
+      },
+      setCommandOpen: (commandOpen) => set({ commandOpen }),
+      syncDom: () => applyDarkClass(get().dark),
     }),
-  setCommandOpen: (commandOpen) => set({ commandOpen }),
-}));
+    {
+      name: 'expert-ui',
+      partialize: (s) => ({ dark: s.dark, sidebarCollapsed: s.sidebarCollapsed }),
+      onRehydrateStorage: () => (state) => {
+        if (state) applyDarkClass(state.dark);
+      },
+    },
+  ),
+);

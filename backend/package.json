@@ -8,7 +8,7 @@
     "build": "prisma generate && nest build",
     "dev": "nest start --watch",
     "start": "node dist/main.js",
-    "start:prod": "prisma db push && node dist/main.js",
+    "start:prod": "node -e \"if(!process.env.DATABASE_URL){console.error('FATAL: DATABASE_URL manquant. Sur Railway: Variables → Add Reference → Postgres → DATABASE_URL'); process.exit(1)}\" && prisma db push && node dist/main.js",
     "lint": "eslint \"{src,test}/**/*.ts\" --fix",
     "test": "jest",
     "test:watch": "jest --watch",

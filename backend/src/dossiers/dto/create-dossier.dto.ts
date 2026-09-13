@@ -47,6 +47,11 @@ class PatientDto {
   @IsOptional()
   @IsString()
   adresse?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  numeroPasseport?: string;
 }
 
 class AccompagnateurDto {

@@ -15,6 +15,7 @@ import { STATUT_LABELS, cn } from '@/lib/utils';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Can } from '@/hooks/usePermission';
+import { PatientAvatar } from '@/components/PatientAvatar';
 
 export type DossierRow = {
   id: string;
@@ -23,7 +24,12 @@ export type DossierRow = {
   destination?: string;
   priorite: string;
   typeClient: string;
-  patient?: { nom: string; prenom: string };
+  patient?: {
+    id: string;
+    nom: string;
+    prenom: string;
+    photoProfil?: string | null;
+  };
   verrouille: boolean;
 };
 
@@ -65,10 +71,24 @@ export function DossiersPage() {
       columnHelper.display({
         id: 'patient',
         header: 'Patient',
-        cell: ({ row }) =>
-          row.original.patient
-            ? `${row.original.patient.prenom} ${row.original.patient.nom}`
-            : '—',
+        cell: ({ row }) => {
+          const p = row.original.patient;
+          if (!p) return '—';
+          return (
+            <div className="flex items-center gap-2.5">
+              <PatientAvatar
+                patientId={p.id}
+                photoProfil={p.photoProfil}
+                prenom={p.prenom}
+                nom={p.nom}
+                size="sm"
+              />
+              <span>
+                {p.prenom} {p.nom}
+              </span>
+            </div>
+          );
+        },
       }),
       columnHelper.accessor('destination', { header: 'Destination', cell: (i) => i.getValue() ?? '—' }),
       columnHelper.accessor('priorite', { header: 'Priorité' }),
@@ -103,10 +123,10 @@ export function DossiersPage() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-3xl font-extrabold tracking-tight">Dossiers</h1>
-          <p className="text-sm text-black/50">Pipeline MED-YYYY-XXXX</p>
+          <p className="text-sm text-muted">Pipeline MED-YYYY-XXXX</p>
         </div>
         <div className="flex items-center gap-2">
-          <div className="flex rounded-xl border border-black/10 bg-white p-1">
+          <div className="flex rounded-xl border border-[var(--border)] bg-surface p-1">
             <button
               type="button"
               className={cn('rounded-lg px-3 py-1.5 text-sm font-medium', view === 'table' && 'bg-brand text-white')}
@@ -138,9 +158,9 @@ export function DossiersPage() {
       />
 
       {view === 'table' ? (
-        <div className="overflow-hidden rounded-2xl border border-black/5 bg-white shadow-soft">
+        <div className="overflow-hidden rounded-2xl border border-[var(--border)] bg-surface shadow-soft">
           <table className="w-full text-sm">
-            <thead className="bg-canvas text-left text-xs uppercase tracking-wide text-black/40">
+            <thead className="bg-canvas text-left text-xs uppercase tracking-wide text-muted">
               {table.getHeaderGroups().map((hg) => (
                 <tr key={hg.id}>
                   {hg.headers.map((h) => (
@@ -153,7 +173,7 @@ export function DossiersPage() {
             </thead>
             <tbody>
               {table.getRowModel().rows.map((row) => (
-                <tr key={row.id} className="border-t border-black/5 hover:bg-brand/[0.03]">
+                <tr key={row.id} className="border-t border-[var(--border)] hover:bg-brand/[0.03]">
                   {row.getVisibleCells().map((cell) => (
                     <td key={cell.id} className="px-4 py-3">
                       {flexRender(cell.column.columnDef.cell, cell.getContext())}
@@ -163,7 +183,7 @@ export function DossiersPage() {
               ))}
               {!isLoading && data.length === 0 && (
                 <tr>
-                  <td colSpan={5} className="px-4 py-12 text-center text-black/40">
+                  <td colSpan={5} className="px-4 py-12 text-center text-muted">
                     Aucun dossier
                   </td>
                 </tr>
@@ -174,8 +194,8 @@ export function DossiersPage() {
       ) : (
         <div className="grid gap-4 lg:grid-cols-4">
           {columnsKanban.map((col) => (
-            <div key={col} className="rounded-2xl bg-white p-3 shadow-soft border border-black/5">
-              <div className="mb-3 px-1 text-xs font-bold uppercase tracking-wide text-black/40">
+            <div key={col} className="rounded-2xl bg-surface p-3 shadow-soft border border-[var(--border)]">
+              <div className="mb-3 px-1 text-xs font-bold uppercase tracking-wide text-muted">
                 {STATUT_LABELS[col]}
               </div>
               <div className="space-y-2">
@@ -185,13 +205,13 @@ export function DossiersPage() {
                     <Link
                       key={d.id}
                       to={`/dossiers/${d.id}`}
-                      className="block rounded-xl border border-black/5 bg-canvas p-3 transition-ui hover:border-brand/30"
+                      className="block rounded-xl border border-[var(--border)] bg-canvas p-3 transition-ui hover:border-brand/30"
                     >
                       <div className="font-semibold text-brand">{d.numero}</div>
                       <div className="mt-1 text-sm">
                         {d.patient ? `${d.patient.prenom} ${d.patient.nom}` : 'Sans patient'}
                       </div>
-                      <div className="mt-1 text-xs text-black/45">{d.destination}</div>
+                      <div className="mt-1 text-xs text-muted">{d.destination}</div>
                     </Link>
                   ))}
               </div>
@@ -233,11 +253,11 @@ function CreateDossierDrawer({
   return (
     <div className="fixed inset-0 z-50 flex justify-end bg-ink/30" onClick={onClose}>
       <div
-        className="h-full w-full max-w-md overflow-auto bg-white p-6 shadow-soft"
+        className="h-full w-full max-w-md overflow-auto bg-surface p-6 shadow-soft"
         onClick={(e) => e.stopPropagation()}
       >
         <h2 className="text-xl font-extrabold">Nouveau dossier</h2>
-        <p className="mt-1 text-sm text-black/50">Le numéro MED sera généré automatiquement.</p>
+        <p className="mt-1 text-sm text-muted">Le numéro MED sera généré automatiquement.</p>
         <div className="mt-6 space-y-4">
           {(
             [

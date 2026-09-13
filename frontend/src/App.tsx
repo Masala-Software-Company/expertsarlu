@@ -10,6 +10,8 @@ import { CorbeillePage } from '@/features/corbeille/CorbeillePage';
 import { ProspectsPage } from '@/features/prospects/ProspectsPage';
 import { LogistiquePage } from '@/features/logistique/LogistiquePage';
 import { AuditPage } from '@/features/audit/AuditPage';
+import { UsersPage } from '@/features/users/UsersPage';
+import { ClientPortalPage } from '@/features/client-portal/ClientPortalPage';
 import { VersionChecker } from '@/components/VersionChecker';
 import { CommandPalette } from '@/components/CommandPalette';
 
@@ -25,6 +27,7 @@ export default function App() {
       <VersionChecker />
       <Routes>
         <Route path="/login" element={<LoginPage />} />
+        <Route path="/portail" element={<ClientPortalPage />} />
         <Route
           path="/"
           element={
@@ -41,6 +44,7 @@ export default function App() {
           <Route path="tarification" element={<TarificationPage />} />
           <Route path="corbeille" element={<CorbeillePage />} />
           <Route path="audit" element={<AuditPage />} />
+          <Route path="utilisateurs" element={<UsersPage />} />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

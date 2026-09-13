@@ -8,6 +8,8 @@ import { STATUT_LABELS, formatMoney, cn } from '@/lib/utils';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Can, usePermission } from '@/hooks/usePermission';
+import { PatientAvatar } from '@/components/PatientAvatar';
+import { GedDocumentsPanel } from './GedDocumentsPanel';
 
 type Tab = 'infos' | 'cotation' | 'documents' | 'logistique' | 'audit';
 
@@ -92,7 +94,7 @@ export function DossierDetailPage() {
   }, [canFinance]);
 
   if (isLoading || !dossier) {
-    return <div className="animate-pulse h-40 rounded-2xl bg-white shadow-soft" />;
+    return <div className="animate-pulse h-40 rounded-2xl bg-surface shadow-soft" />;
   }
 
   const locked = dossier.verrouille || ['VALIDE', 'FACTURE_PAYE', 'VERROUILLE'].includes(dossier.statut);
@@ -101,16 +103,54 @@ export function DossierDetailPage() {
     <div className="space-y-5">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <Link to="/dossiers" className="inline-flex items-center gap-1 text-sm text-black/50 hover:text-brand">
+          <Link to="/dossiers" className="inline-flex items-center gap-1 text-sm text-muted hover:text-brand">
             <ArrowLeft className="h-4 w-4" /> Dossiers
           </Link>
           <h1 className="mt-2 text-3xl font-extrabold tracking-tight">{dossier.numero}</h1>
-          <p className="text-black/50">
-            {dossier.patient
-              ? `${dossier.patient.prenom} ${dossier.patient.nom}`
-              : 'Patient non renseigné'}{' '}
-            · {STATUT_LABELS[dossier.statut]}
-          </p>
+          <div className="mt-2 flex items-center gap-3">
+            {dossier.patient && (
+              <PatientAvatar
+                patientId={dossier.patient.id}
+                photoProfil={dossier.patient.photoProfil}
+                prenom={dossier.patient.prenom}
+                nom={dossier.patient.nom}
+                size="lg"
+              />
+            )}
+            <p className="text-muted">
+              {dossier.patient
+                ? `${dossier.patient.prenom} ${dossier.patient.nom}`
+                : 'Patient non renseigné'}{' '}
+              · {STATUT_LABELS[dossier.statut]}
+              {dossier.patient?.numeroPasseport && (
+                <span className="ml-2 text-xs">· Passeport {dossier.patient.numeroPasseport}</span>
+              )}
+            </p>
+          </div>
+          {dossier.patient?.id && (
+            <label className="mt-3 inline-flex cursor-pointer items-center gap-2 text-xs font-semibold text-brand">
+              Changer la photo
+              <input
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={async (e) => {
+                  const file = e.target.files?.[0];
+                  if (!file) return;
+                  const fd = new FormData();
+                  fd.append('file', file);
+                  try {
+                    await api.post(`/patients/${dossier.patient.id}/photo`, fd);
+                    void qc.invalidateQueries({ queryKey: ['dossier', id] });
+                    void qc.invalidateQueries({ queryKey: ['dossiers'] });
+                    toast.success('Photo mise à jour');
+                  } catch {
+                    toast.error('Upload photo impossible');
+                  }
+                }}
+              />
+            </label>
+          )}
         </div>
         <div className="flex flex-wrap gap-2">
           <Can module="dossiers" action="validate">
@@ -144,7 +184,7 @@ export function DossierDetailPage() {
         </div>
       )}
 
-      <div className="flex gap-1 rounded-xl border border-black/5 bg-white p-1 w-fit">
+      <div className="flex gap-1 rounded-xl border border-[var(--border)] bg-surface p-1 w-fit">
         {tabs.map((t) => (
           <button
             key={t.id}
@@ -186,7 +226,7 @@ export function DossierDetailPage() {
           </InfoCard>
           <InfoCard title="Accompagnateurs">
             {(dossier.accompagnateurs ?? []).length === 0 && (
-              <p className="text-sm text-black/40">Aucun accompagnateur</p>
+              <p className="text-sm text-muted">Aucun accompagnateur</p>
             )}
             {(dossier.accompagnateurs ?? []).map(
               (a: { id: string; prenom: string; nom: string; lien?: string }) => (
@@ -199,7 +239,7 @@ export function DossierDetailPage() {
 
       {tab === 'cotation' && canFinance && (
         <div className="space-y-4">
-          <div className="flex flex-wrap items-end gap-3 rounded-2xl bg-white p-4 shadow-soft border border-black/5">
+          <div className="flex flex-wrap items-end gap-3 rounded-2xl bg-surface p-4 shadow-soft border border-[var(--border)]">
             <div>
               <label className="text-sm font-medium">Jours d’assurance</label>
               <Input
@@ -209,7 +249,7 @@ export function DossierDetailPage() {
                 onChange={(e) => setJours(Number(e.target.value))}
                 className="mt-1 w-32"
               />
-              <p className="mt-1 text-xs text-black/40">J≤30 → 7$/j · J≥31 → 6,50$/j</p>
+              <p className="mt-1 text-xs text-muted">J≤30 → 7$/j · J≥31 → 6,50$/j</p>
             </div>
             <Button onClick={() => recalcul.mutate()} disabled={locked}>
               Recalculer
@@ -219,9 +259,9 @@ export function DossierDetailPage() {
             </Button>
           </div>
 
-          <div className="overflow-hidden rounded-2xl border border-black/5 bg-white shadow-soft">
+          <div className="overflow-hidden rounded-2xl border border-[var(--border)] bg-surface shadow-soft">
             <table className="w-full text-sm">
-              <thead className="bg-canvas text-left text-xs uppercase text-black/40">
+              <thead className="bg-canvas text-left text-xs uppercase text-muted">
                 <tr>
                   <th className="px-4 py-3">Description</th>
                   <th className="px-4 py-3">Type</th>
@@ -231,9 +271,9 @@ export function DossierDetailPage() {
               <tbody>
                 {(cotation?.lignes ?? []).map(
                   (l: { id: string; description: string; type: string; montant: number }) => (
-                    <tr key={l.id} className="border-t border-black/5">
+                    <tr key={l.id} className="border-t border-[var(--border)]">
                       <td className="px-4 py-3">{l.description}</td>
-                      <td className="px-4 py-3 text-black/50">{l.type}</td>
+                      <td className="px-4 py-3 text-muted">{l.type}</td>
                       <td className="px-4 py-3 text-right font-semibold">
                         {formatMoney(Number(l.montant))}
                       </td>
@@ -242,7 +282,7 @@ export function DossierDetailPage() {
                 )}
               </tbody>
               <tfoot>
-                <tr className="border-t border-black/10 bg-canvas">
+                <tr className="border-t border-[var(--border)] bg-canvas">
                   <td className="px-4 py-3 font-bold" colSpan={2}>
                     Total
                   </td>
@@ -257,17 +297,14 @@ export function DossierDetailPage() {
       )}
 
       {tab === 'documents' && (
-        <div className="rounded-2xl bg-white p-6 shadow-soft border border-black/5 text-sm text-black/50">
-          GED — uploadez les pièces identité / médical / logistique / facturation via l’API{' '}
-          <code className="text-brand">POST /ged/:dossierId</code>.
-        </div>
+        <GedDocumentsPanel dossierId={id} locked={locked} />
       )}
 
       {tab === 'logistique' && (
-        <div className="rounded-2xl bg-white p-6 shadow-soft border border-black/5">
-          <p className="text-sm text-black/50 mb-3">Tâches liées à ce dossier</p>
+        <div className="rounded-2xl bg-surface p-6 shadow-soft border border-[var(--border)]">
+          <p className="text-sm text-muted mb-3">Tâches liées à ce dossier</p>
           {(dossier.tachesLogistique ?? []).length === 0 ? (
-            <p className="text-sm text-black/40">Aucune tâche — créez-en depuis Protocole.</p>
+            <p className="text-sm text-muted">Aucune tâche — créez-en depuis Protocole.</p>
           ) : (
             <ul className="space-y-2">
               {dossier.tachesLogistique.map(
@@ -276,7 +313,7 @@ export function DossierDetailPage() {
                     <span>
                       <strong>{t.titre}</strong> · {t.type}
                     </span>
-                    <span className="text-black/45">{t.statut}</span>
+                    <span className="text-muted">{t.statut}</span>
                   </li>
                 ),
               )}
@@ -287,7 +324,7 @@ export function DossierDetailPage() {
 
       {confirmDelete && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/40 p-4">
-          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-soft">
+          <div className="w-full max-w-md rounded-2xl bg-surface p-6 shadow-soft">
             <h3 className="text-lg font-bold">Déplacer vers la corbeille ?</h3>
             <p className="mt-2 text-sm text-black/60">
               Ce dossier sera déplacé vers la corbeille et récupérable pendant 90 jours. Aucune
@@ -315,8 +352,8 @@ export function DossierDetailPage() {
 
 function InfoCard({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div className="rounded-2xl border border-black/5 bg-white p-5 shadow-soft">
-      <h3 className="mb-3 text-sm font-bold uppercase tracking-wide text-black/40">{title}</h3>
+    <div className="rounded-2xl border border-[var(--border)] bg-surface p-5 shadow-soft">
+      <h3 className="mb-3 text-sm font-bold uppercase tracking-wide text-muted">{title}</h3>
       <div className="space-y-2">{children}</div>
     </div>
   );
@@ -325,7 +362,7 @@ function InfoCard({ title, children }: { title: string; children: React.ReactNod
 function Row({ label, value }: { label: string; value?: string | null }) {
   return (
     <div className="flex justify-between gap-4 text-sm">
-      <span className="text-black/45">{label}</span>
+      <span className="text-muted">{label}</span>
       <span className="font-medium text-right">{value || '—'}</span>
     </div>
   );

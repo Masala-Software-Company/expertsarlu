@@ -6,6 +6,12 @@ import { Toaster } from 'sonner';
 import App from './App';
 import './index.css';
 import './lib/i18n';
+import { useUiStore } from './lib/ui-store';
+
+useUiStore.persist.onFinishHydration(() => {
+  useUiStore.getState().syncDom();
+});
+useUiStore.getState().syncDom();
 
 const queryClient = new QueryClient({
   defaultOptions: {

@@ -37,8 +37,23 @@ export function LoginPage() {
       setUser({ ...data.user, permissions: me.data.permissions });
       toast.success(`Bienvenue, ${data.user.nom}`);
       navigate('/');
-    } catch {
-      toast.error('Identifiants invalides');
+    } catch (err: unknown) {
+      const ax = err as {
+        code?: string;
+        message?: string;
+        response?: { status?: number; data?: { message?: string } };
+      };
+      if (!ax.response) {
+        toast.error(
+          `API injoignable (${import.meta.env.VITE_API_URL ?? 'http://localhost:3000/api'}). Démarrez le backend : pnpm dev:api`,
+        );
+        return;
+      }
+      if (ax.response.status === 401) {
+        toast.error('Identifiants invalides');
+        return;
+      }
+      toast.error(ax.response.data?.message ?? 'Connexion impossible');
     }
   });
 
@@ -81,6 +96,9 @@ export function LoginPage() {
           <Button type="submit" className="w-full" disabled={isSubmitting}>
             {isSubmitting ? 'Connexion…' : 'Se connecter'}
           </Button>
+          <p className="text-center text-[11px] text-black/35 break-all">
+            API : {(import.meta.env.VITE_API_URL as string) ?? 'http://localhost:3000/api'}
+          </p>
         </form>
       </div>
     </div>

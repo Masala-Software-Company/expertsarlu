@@ -16,6 +16,8 @@ import { NotificationsModule } from './notifications/notifications.module';
 import { HealthModule } from './health/health.module';
 import { VersionModule } from './version/version.module';
 import { ProspectsModule } from './prospects/prospects.module';
+import { PatientsModule } from './patients/patients.module';
+import { ClientPortalModule } from './client-portal/client-portal.module';
 import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
 import { PermissionsGuard } from './auth/guards/permissions.guard';
 import { AuditInterceptor } from './audit/audit.interceptor';
@@ -38,6 +40,8 @@ import { AuditInterceptor } from './audit/audit.interceptor';
     HealthModule,
     VersionModule,
     ProspectsModule,
+    PatientsModule,
+    ClientPortalModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: ThrottlerGuard },

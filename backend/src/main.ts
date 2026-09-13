@@ -14,8 +14,24 @@ async function bootstrap() {
     .map((o) => o.trim())
     .filter(Boolean);
 
+  // Tauri (macOS/Windows) peut envoyer tauri://localhost, https://tauri.localhost ou Origin: null
+  const tauriOrigins = [
+    'tauri://localhost',
+    'https://tauri.localhost',
+    'http://tauri.localhost',
+  ];
+
   app.enableCors({
-    origin: origins,
+    origin: (
+      origin: string | undefined,
+      callback: (err: Error | null, allow?: boolean) => void,
+    ) => {
+      if (!origin || origins.includes(origin) || tauriOrigins.includes(origin)) {
+        callback(null, true);
+        return;
+      }
+      callback(null, false);
+    },
     credentials: true,
   });
 

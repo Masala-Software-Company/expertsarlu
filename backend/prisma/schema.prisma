@@ -205,17 +205,19 @@ model DossierSequence {
 }
 
 model Patient {
-  id              String   @id @default(cuid())
-  dossierId       String   @unique @map("dossier_id")
-  nom             String
-  prenom          String
-  dateNaissance   DateTime? @map("date_naissance")
-  nationalite     String?
-  telephone       String?
-  email           String?
-  adresse         String?
-  documentIdentite String? @map("document_identite")
-  creeLe          DateTime @default(now()) @map("cree_le")
+  id               String    @id @default(cuid())
+  dossierId        String    @unique @map("dossier_id")
+  nom              String
+  prenom           String
+  dateNaissance    DateTime? @map("date_naissance")
+  nationalite      String?
+  telephone        String?
+  email            String?
+  adresse          String?
+  documentIdentite String?   @map("document_identite")
+  numeroPasseport  String?   @map("numero_passeport")
+  photoProfil      String?   @map("photo_profil")
+  creeLe           DateTime  @default(now()) @map("cree_le")
 
   dossier Dossier @relation(fields: [dossierId], references: [id], onDelete: Cascade)
 

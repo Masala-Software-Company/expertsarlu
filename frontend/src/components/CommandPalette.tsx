@@ -39,6 +39,7 @@ export function CommandPalette() {
       { id: 'dos', label: 'Tous les dossiers', to: '/dossiers' },
       { id: 'pros', label: 'Prospects', to: '/prospects' },
       { id: 'log', label: 'Logistique / Planning', to: '/logistique' },
+      { id: 'users', label: 'Utilisateurs & rôles', to: '/utilisateurs' },
     ],
     [],
   );
