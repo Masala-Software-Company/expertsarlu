@@ -1,15 +1,17 @@
+# Utilisé si Root Directory = backend sur Railway
+
 FROM node:20-alpine AS deps
 WORKDIR /app
 RUN corepack enable && corepack prepare pnpm@9.15.0 --activate
 COPY package.json ./
-RUN pnpm install --no-frozen-lockfile
+RUN pnpm install --no-frozen-lockfile --ignore-scripts
 
 FROM node:20-alpine AS build
 WORKDIR /app
 RUN corepack enable && corepack prepare pnpm@9.15.0 --activate
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
-RUN pnpm prisma generate && pnpm build
+RUN pnpm run build
 
 FROM node:20-alpine AS runner
 WORKDIR /app

@@ -1,9 +1,9 @@
-# Railway — service Root Directory MUST be: backend
-# Settings → Root Directory → backend
+# Si Root Directory = backend (recommandé dans l'UI Railway)
 
 [build]
-builder = "RAILPACK"
-buildCommand = "pnpm install --no-frozen-lockfile && pnpm run build"
+builder = "DOCKERFILE"
+dockerfilePath = "Dockerfile"
+watchPatterns = ["**"]
 
 [deploy]
 startCommand = "pnpm run start:prod"

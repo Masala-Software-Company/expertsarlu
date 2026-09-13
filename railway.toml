@@ -1,18 +1,10 @@
-# Force Docker builder — contourne Railpack monorepo
-# Watch Paths : rebuild auto seulement si backend (ou ce Dockerfile) change
+# Option A (recommandée) : dans Railway UI → Settings → Root Directory = backend
+# Option B : laisser Root Directory vide — ce Dockerfile ne copie que backend/
 
 [build]
 builder = "DOCKERFILE"
 dockerfilePath = "Dockerfile"
-watchPatterns = [
-  "backend/**",
-  "Dockerfile",
-  "package.json",
-  "pnpm-lock.yaml",
-  "pnpm-workspace.yaml",
-  "railway.toml",
-  "railway.json"
-]
+watchPatterns = ["backend/**", "Dockerfile", "railway.toml", "railway.json"]
 
 [deploy]
 healthcheckPath = "/health"

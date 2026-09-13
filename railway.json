@@ -6,9 +6,6 @@
     "watchPatterns": [
       "backend/**",
       "Dockerfile",
-      "package.json",
-      "pnpm-lock.yaml",
-      "pnpm-workspace.yaml",
       "railway.toml",
       "railway.json"
     ]
