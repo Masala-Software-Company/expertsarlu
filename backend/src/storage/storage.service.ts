@@ -21,11 +21,38 @@ export class StorageService {
   private readonly bucket: string | null;
 
   constructor(private config: ConfigService) {
-    const endpoint = this.config.get<string>('S3_ENDPOINT');
-    const bucket = this.config.get<string>('S3_BUCKET');
-    const accessKeyId = this.config.get<string>('S3_ACCESS_KEY_ID');
-    const secretAccessKey = this.config.get<string>('S3_SECRET_ACCESS_KEY');
-    const region = this.config.get<string>('S3_REGION') || 'auto';
+    // Accepte nos S3_* et les noms injectés par Railway Bucket / AWS SDK
+    const endpoint =
+      this.config.get<string>('S3_ENDPOINT') ||
+      this.config.get<string>('ENDPOINT') ||
+      this.config.get<string>('BUCKET_ENDPOINT') ||
+      this.config.get<string>('AWS_ENDPOINT_URL');
+    const bucket =
+      this.config.get<string>('S3_BUCKET') ||
+      this.config.get<string>('BUCKET') ||
+      this.config.get<string>('BUCKET_NAME') ||
+      this.config.get<string>('AWS_S3_BUCKET_NAME');
+    const accessKeyId =
+      this.config.get<string>('S3_ACCESS_KEY_ID') ||
+      this.config.get<string>('ACCESS_KEY_ID') ||
+      this.config.get<string>('BUCKET_ACCESS_KEY_ID') ||
+      this.config.get<string>('AWS_ACCESS_KEY_ID');
+    const secretAccessKey =
+      this.config.get<string>('S3_SECRET_ACCESS_KEY') ||
+      this.config.get<string>('SECRET_ACCESS_KEY') ||
+      this.config.get<string>('BUCKET_SECRET_ACCESS_KEY') ||
+      this.config.get<string>('AWS_SECRET_ACCESS_KEY');
+    const region =
+      this.config.get<string>('S3_REGION') ||
+      this.config.get<string>('REGION') ||
+      this.config.get<string>('AWS_DEFAULT_REGION') ||
+      'auto';
+
+    const forcePathStyleEnv = this.config.get<string>('S3_FORCE_PATH_STYLE');
+    const forcePathStyle =
+      forcePathStyleEnv != null
+        ? forcePathStyleEnv === 'true' || forcePathStyleEnv === '1'
+        : !endpoint?.includes('storage.railway.app');
 
     if (endpoint && bucket && accessKeyId && secretAccessKey) {
       this.bucket = bucket;
@@ -33,13 +60,19 @@ export class StorageService {
         endpoint,
         region,
         credentials: { accessKeyId, secretAccessKey },
-        forcePathStyle: true,
+        forcePathStyle,
       });
-      this.log.log(`S3 storage enabled → ${bucket} @ ${endpoint}`);
+      this.log.log(
+        `S3 storage enabled → ${bucket} @ ${endpoint} (pathStyle=${forcePathStyle})`,
+      );
     } else {
       this.bucket = null;
       this.client = null;
-      this.log.warn('S3 non configuré — fallback disque local (GED_STORAGE_PATH)');
+      this.log.warn(
+        'S3 non configuré sur ce service — fallback disque local. ' +
+          'Sur Railway: service expertsarlu → Variables → référencer le Bucket ' +
+          '(BUCKET, ENDPOINT, ACCESS_KEY_ID, SECRET_ACCESS_KEY, REGION).',
+      );
     }
   }
 
