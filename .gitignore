@@ -3,7 +3,9 @@ dist
 dist-ssr
 *.local
 .env
-.env.local
+.env.*
+!.env.example
+!**/.env.example
 .DS_Store
 coverage
 *.log
@@ -20,3 +22,6 @@ apps/desktop/src-tauri/gen
 !.vscode/extensions.json
 .tools/
 pnpm-lock.yaml.bak
+
+# Document de spécifications — hors dépôt
+eXpert-SARLU-Dossier-Specifications.md
