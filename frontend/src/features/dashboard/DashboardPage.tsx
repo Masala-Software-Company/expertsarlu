@@ -70,9 +70,6 @@ export function DashboardPage() {
         <div className="rounded-2xl border border-brand/25 bg-brand p-6 text-white shadow-soft">
           <div className="text-sm text-white/70">Pipeline financier (cotations en cours)</div>
           <div className="mt-2 text-3xl font-extrabold">{formatMoney(totalCotation)}</div>
-          <p className="mt-2 text-xs text-white/65">
-            Total calculé en direct depuis les dossiers — aucune donnée fictive.
-          </p>
         </div>
       )}
 

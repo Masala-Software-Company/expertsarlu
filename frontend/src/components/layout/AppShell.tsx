@@ -1,4 +1,5 @@
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
+import { useEffect, useRef, useState } from 'react';
 import {
   LayoutDashboard,
   FolderKanban,
@@ -14,6 +15,7 @@ import {
   Sun,
   ChevronsLeft,
   ChevronsRight,
+  UserRound,
 } from 'lucide-react';
 import logoLight from '@/assets/logos/logo-light.jpg';
 import logoDark from '@/assets/logos/logo-dark.png';
@@ -22,6 +24,7 @@ import { useUiStore } from '@/lib/ui-store';
 import { ROLE_LABELS, cn, firstName } from '@/lib/utils';
 import { Button } from '@/components/ui/Button';
 import { UserAvatar } from '@/components/UserAvatar';
+import type { User } from '@/features/auth/auth-store';
 
 const NAV = [
   { to: '/', label: 'Tableau de bord', icon: LayoutDashboard, roles: 'all' },
@@ -122,47 +125,18 @@ export function AppShell() {
           ))}
         </nav>
 
-        <div className={cn('border-t border-[var(--border)] p-2', collapsed && 'px-1.5')}>
+        <div className={cn('relative border-t border-[var(--border)] p-2', collapsed && 'px-1.5')}>
           {user && (
-            <button
-              type="button"
-              onClick={() => navigate('/profil')}
-              className={cn(
-                'mb-2 w-full rounded-xl bg-canvas transition-ui hover:bg-brand/10',
-                collapsed ? 'flex justify-center p-2' : 'flex items-center gap-3 px-3 py-2 text-left',
-              )}
-              title="Mon profil"
-            >
-              <UserAvatar
-                userId={user.id}
-                photoProfil={user.photoProfil}
-                nom={user.nom}
-                size="sm"
-              />
-              {!collapsed && (
-                <div className="min-w-0">
-                  <div className="truncate text-sm font-semibold">
-                    Bonjour, {firstName(user.nom) || '…'}
-                  </div>
-                  <div className="truncate text-xs text-muted">
-                    {ROLE_LABELS[user.role] ?? user.role}
-                  </div>
-                </div>
-              )}
-            </button>
+            <ProfileMenu
+              user={user}
+              collapsed={collapsed}
+              onProfile={() => navigate('/profil')}
+              onLogout={() => {
+                logout();
+                navigate('/login');
+              }}
+            />
           )}
-          <Button
-            variant="ghost"
-            className={cn('w-full', collapsed ? 'justify-center px-0' : 'justify-start')}
-            title="Déconnexion"
-            onClick={() => {
-              logout();
-              navigate('/login');
-            }}
-          >
-            <LogOut className="h-4 w-4" />
-            {!collapsed && 'Déconnexion'}
-          </Button>
         </div>
 
         <button
@@ -207,6 +181,89 @@ export function AppShell() {
           <Outlet />
         </main>
       </div>
+    </div>
+  );
+}
+
+function ProfileMenu({
+  user,
+  collapsed,
+  onProfile,
+  onLogout,
+}: {
+  user: User;
+  collapsed: boolean;
+  onProfile: () => void;
+  onLogout: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onDoc = (e: MouseEvent) => {
+      if (!rootRef.current?.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener('mousedown', onDoc);
+    return () => document.removeEventListener('mousedown', onDoc);
+  }, [open]);
+
+  return (
+    <div ref={rootRef} className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className={cn(
+          'w-full rounded-xl bg-canvas transition-ui hover:bg-brand/10',
+          collapsed ? 'flex justify-center p-2' : 'flex items-center gap-3 px-3 py-2 text-left',
+        )}
+        title="Compte"
+        aria-expanded={open}
+      >
+        <UserAvatar userId={user.id} photoProfil={user.photoProfil} nom={user.nom} size="sm" />
+        {!collapsed && (
+          <div className="min-w-0">
+            <div className="truncate text-sm font-semibold">
+              Bonjour, {firstName(user.nom) || '…'}
+            </div>
+            <div className="truncate text-xs text-muted">
+              {ROLE_LABELS[user.role] ?? user.role}
+            </div>
+          </div>
+        )}
+      </button>
+
+      {open && (
+        <div
+          className={cn(
+            'absolute z-30 overflow-hidden rounded-xl border border-[var(--border)] bg-surface shadow-soft',
+            collapsed ? 'bottom-full left-0 mb-2 w-48' : 'bottom-full left-0 right-0 mb-2',
+          )}
+        >
+          <button
+            type="button"
+            className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm hover:bg-brand/10"
+            onClick={() => {
+              setOpen(false);
+              onProfile();
+            }}
+          >
+            <UserRound className="h-4 w-4 text-brand" />
+            Mon profil
+          </button>
+          <button
+            type="button"
+            className="flex w-full items-center gap-2 border-t border-[var(--border)] px-3 py-2.5 text-left text-sm text-danger hover:bg-danger/10"
+            onClick={() => {
+              setOpen(false);
+              onLogout();
+            }}
+          >
+            <LogOut className="h-4 w-4" />
+            Déconnexion
+          </button>
+        </div>
+      )}
     </div>
   );
 }
