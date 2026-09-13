@@ -17,7 +17,6 @@ import { ProfilePage } from '@/features/profile/ProfilePage';
 import { ClientPortalPage } from '@/features/client-portal/ClientPortalPage';
 import { SuiviPage } from '@/features/client-portal/SuiviPage';
 import { PartenairesPage } from '@/features/partenaires/PartenairesPage';
-import { InboxPage } from '@/features/inbox/InboxPage';
 import { SignerPage } from '@/features/facturation/SignerPage';
 import { VersionChecker } from '@/components/VersionChecker';
 import { CommandPalette } from '@/components/CommandPalette';
@@ -77,8 +76,10 @@ export default function App() {
           <Route path="dossiers" element={<DossiersPage />} />
           <Route path="dossiers/:id" element={<DossierDetailPage />} />
           <Route path="prospects" element={<ProspectsPage />} />
+          <Route path="onboarding" element={<Navigate to="/prospects" replace />} />
           <Route path="partenaires" element={<PartenairesPage />} />
-          <Route path="inbox" element={<InboxPage />} />
+          <Route path="inbox" element={<Navigate to="/prospects?tab=messages" replace />} />
+          <Route path="messages" element={<Navigate to="/prospects?tab=messages" replace />} />
           <Route path="logistique" element={<LogistiquePage />} />
           <Route path="tarification" element={<TarificationPage />} />
           <Route path="corbeille" element={<CorbeillePage />} />

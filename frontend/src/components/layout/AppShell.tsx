@@ -17,7 +17,6 @@ import {
   ChevronsRight,
   UserRound,
   Building2,
-  Inbox,
 } from 'lucide-react';
 import logoLight from '@/assets/logos/logo-light.jpg';
 import logoDark from '@/assets/logos/logo-dark.png';
@@ -29,12 +28,20 @@ import { UserAvatar } from '@/components/UserAvatar';
 import { NotificationBell } from '@/components/NotificationBell';
 import type { User } from '@/features/auth/auth-store';
 
-const NAV = [
+const NAV: {
+  to: string;
+  label: string;
+  icon: typeof LayoutDashboard;
+  roles: 'all' | string[];
+}[] = [
+  // Accueil — tous les rôles
   { to: '/', label: 'Tableau de bord', icon: LayoutDashboard, roles: 'all' },
+  // Pipeline dossiers — tous
   { to: '/dossiers', label: 'Dossiers', icon: FolderKanban, roles: 'all' },
+  // Gestion Client (Support) + Assistant + Super Admin
   {
     to: '/prospects',
-    label: 'Prospects',
+    label: 'Onboarding',
     icon: Users,
     roles: ['SUPER_ADMIN', 'SUPPORT_CLIENT', 'ASSISTANT_MANAGER'],
   },
@@ -44,18 +51,14 @@ const NAV = [
     icon: Building2,
     roles: ['SUPER_ADMIN', 'SUPPORT_CLIENT', 'ASSISTANT_MANAGER'],
   },
-  {
-    to: '/inbox',
-    label: 'Inbox',
-    icon: Inbox,
-    roles: ['SUPER_ADMIN', 'SUPPORT_CLIENT', 'ASSISTANT_MANAGER'],
-  },
+  // Service Protocole
   {
     to: '/logistique',
     label: 'Protocole',
     icon: Truck,
     roles: ['SUPER_ADMIN', 'PROTOCOLE', 'ASSISTANT_MANAGER'],
   },
+  // Super Admin uniquement
   {
     to: '/tarification',
     label: 'Tarification',

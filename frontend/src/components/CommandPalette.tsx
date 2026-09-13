@@ -37,7 +37,8 @@ export function CommandPalette() {
     () => [
       { id: 'dash', label: 'Tableau de bord', to: '/' },
       { id: 'dos', label: 'Tous les dossiers', to: '/dossiers' },
-      { id: 'pros', label: 'Prospects', to: '/prospects' },
+      { id: 'pros', label: 'Onboarding', to: '/prospects' },
+      { id: 'messages', label: 'Messages (Onboarding)', to: '/prospects?tab=messages' },
       { id: 'log', label: 'Logistique / Planning', to: '/logistique' },
       { id: 'users', label: 'Équipe', to: '/equipe' },
     ],

@@ -277,15 +277,17 @@ model Partenaire {
 }
 
 model RendezVous {
-  id         String            @id @default(cuid())
-  dossierId  String?           @map("dossier_id")
-  type       TypeRendezVous
-  dateHeure  DateTime          @map("date_heure")
-  lieu       String?
-  statut     StatutRendezVous  @default(PLANIFIE)
-  notes      String?
-  assigneAId String?           @map("assigne_a_id")
-  creeLe     DateTime          @default(now()) @map("cree_le")
+  id               String            @id @default(cuid())
+  dossierId        String?           @map("dossier_id")
+  type             TypeRendezVous
+  dateHeure        DateTime          @map("date_heure")
+  lieu             String?
+  statut           StatutRendezVous  @default(PLANIFIE)
+  notes            String?
+  assigneAId       String?           @map("assigne_a_id")
+  rappelJ1EnvoyeLe DateTime?         @map("rappel_j1_envoye_le")
+  rappelJ0EnvoyeLe DateTime?         @map("rappel_j0_envoye_le")
+  creeLe           DateTime          @default(now()) @map("cree_le")
 
   dossier  Dossier? @relation(fields: [dossierId], references: [id], onDelete: Cascade)
   assigneA User?    @relation(fields: [assigneAId], references: [id])

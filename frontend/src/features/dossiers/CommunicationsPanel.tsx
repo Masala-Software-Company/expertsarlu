@@ -52,7 +52,7 @@ export function CommunicationsPanel({
       setCorps('');
       toast.success(
         canal === 'EMAIL' || canal === 'WHATSAPP'
-          ? 'Message journalisé (envoi stub)'
+          ? 'Message enregistré'
           : 'Note enregistrée',
       );
     },

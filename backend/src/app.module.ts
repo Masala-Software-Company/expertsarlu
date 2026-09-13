@@ -24,6 +24,7 @@ import { CommunicationsModule } from './communications/communications.module';
 import { InboxModule } from './inbox/inbox.module';
 import { JobsModule } from './jobs/jobs.module';
 import { PdfModule } from './pdf/pdf.module';
+import { MailModule } from './mail/mail.module';
 import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
 import { PermissionsGuard } from './auth/guards/permissions.guard';
 import { AuditInterceptor } from './audit/audit.interceptor';
@@ -35,6 +36,7 @@ import { AuditInterceptor } from './audit/audit.interceptor';
     PrismaModule,
     StorageModule,
     PdfModule,
+    MailModule,
     AuthModule,
     UsersModule,
     DossiersModule,
