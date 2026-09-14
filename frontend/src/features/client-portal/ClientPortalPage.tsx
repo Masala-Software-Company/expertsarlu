@@ -1,7 +1,7 @@
 import { FormEvent, useState } from 'react';
 import { toast } from 'sonner';
 import axios from 'axios';
-import logoOnBlue from '@/assets/logos/logo-on-blue.jpg';
+import logoLight from '@/assets/logos/logo-light.png';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 
@@ -56,7 +56,7 @@ export function ClientPortalPage() {
     return (
       <div className="min-h-screen bg-canvas px-4 py-16 text-ink">
         <div className="mx-auto max-w-lg rounded-2xl border border-[var(--border)] bg-surface p-8 shadow-soft text-center">
-          <img src={logoOnBlue} alt="eXpert" className="mx-auto mb-6 h-12 rounded-lg object-contain" />
+          <img src={logoLight} alt="eXpert" className="mx-auto mb-6 h-16 w-auto object-contain" />
           <h1 className="text-2xl font-extrabold">Demande reçue</h1>
           <p className="mt-2 text-sm text-muted">{done.message}</p>
           <p className="mt-4 text-lg font-bold text-brand">{done.numero}</p>
@@ -72,7 +72,7 @@ export function ClientPortalPage() {
     <div className="min-h-screen bg-canvas text-ink">
       <div className="bg-brand px-4 py-10 text-white">
         <div className="mx-auto max-w-2xl">
-          <img src={logoOnBlue} alt="eXpert" className="mb-4 h-10 rounded object-contain" />
+          <img src={logoLight} alt="eXpert" className="mb-4 h-14 w-auto object-contain" />
           <h1 className="text-3xl font-extrabold tracking-tight">Portail patient</h1>
           <p className="mt-2 text-white/80">
             Remplissez votre dossier KYC (identité + passeport). eXpert reçoit automatiquement

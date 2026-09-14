@@ -1,14 +1,6 @@
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useEffect, useRef, useState } from 'react';
 import {
-  LayoutDashboard,
-  FolderKanban,
-  Users,
-  Truck,
-  BadgeDollarSign,
-  Trash2,
-  ScrollText,
-  UserCog,
   LogOut,
   Search,
   Moon,
@@ -16,74 +8,18 @@ import {
   ChevronsLeft,
   ChevronsRight,
   UserRound,
-  Building2,
 } from 'lucide-react';
-import logoLight from '@/assets/logos/logo-light.jpg';
+import logoLight from '@/assets/logos/logo-light.png';
 import logoDark from '@/assets/logos/logo-dark.png';
+import markEx from '@/assets/logos/mark-ex-cropped.png';
 import { useAuthStore } from '@/features/auth/auth-store';
 import { useUiStore } from '@/lib/ui-store';
+import { navForRole } from '@/lib/role-access';
 import { ROLE_LABELS, cn, firstName } from '@/lib/utils';
 import { Button } from '@/components/ui/Button';
 import { UserAvatar } from '@/components/UserAvatar';
 import { NotificationBell } from '@/components/NotificationBell';
 import type { User } from '@/features/auth/auth-store';
-
-const NAV: {
-  to: string;
-  label: string;
-  icon: typeof LayoutDashboard;
-  roles: 'all' | string[];
-}[] = [
-  // Accueil — tous les rôles
-  { to: '/', label: 'Tableau de bord', icon: LayoutDashboard, roles: 'all' },
-  // Pipeline dossiers — tous
-  { to: '/dossiers', label: 'Dossiers', icon: FolderKanban, roles: 'all' },
-  // Gestion Client (Support) + Assistant + Super Admin
-  {
-    to: '/prospects',
-    label: 'Onboarding',
-    icon: Users,
-    roles: ['SUPER_ADMIN', 'SUPPORT_CLIENT', 'ASSISTANT_MANAGER'],
-  },
-  {
-    to: '/partenaires',
-    label: 'Partenaires',
-    icon: Building2,
-    roles: ['SUPER_ADMIN', 'SUPPORT_CLIENT', 'ASSISTANT_MANAGER'],
-  },
-  // Service Protocole
-  {
-    to: '/logistique',
-    label: 'Protocole',
-    icon: Truck,
-    roles: ['SUPER_ADMIN', 'PROTOCOLE', 'ASSISTANT_MANAGER'],
-  },
-  // Super Admin uniquement
-  {
-    to: '/tarification',
-    label: 'Tarification',
-    icon: BadgeDollarSign,
-    roles: ['SUPER_ADMIN'],
-  },
-  {
-    to: '/corbeille',
-    label: 'Corbeille',
-    icon: Trash2,
-    roles: ['SUPER_ADMIN', 'ASSISTANT_MANAGER'],
-  },
-  {
-    to: '/audit',
-    label: 'Audit',
-    icon: ScrollText,
-    roles: ['SUPER_ADMIN', 'ASSISTANT_MANAGER'],
-  },
-  {
-    to: '/equipe',
-    label: 'Équipe',
-    icon: UserCog,
-    roles: ['SUPER_ADMIN'],
-  },
-];
 
 export function AppShell() {
   const user = useAuthStore((s) => s.user);
@@ -95,9 +31,7 @@ export function AppShell() {
   const toggleDark = useUiStore((s) => s.toggleDark);
   const setCommandOpen = useUiStore((s) => s.setCommandOpen);
 
-  const items = NAV.filter(
-    (n) => n.roles === 'all' || (user && (n.roles as string[]).includes(user.role)),
-  );
+  const items = navForRole(user?.role);
 
   return (
     <div className="flex h-full min-h-screen bg-canvas text-ink">
@@ -109,14 +43,17 @@ export function AppShell() {
       >
         <div
           className={cn(
-            'flex h-16 items-center border-b border-[var(--border)]',
+            'flex h-24 items-center border-b border-[var(--border)]',
             collapsed ? 'justify-center px-2' : 'px-4',
           )}
         >
           <img
-            src={dark ? logoDark : logoLight}
+            src={collapsed ? markEx : dark ? logoDark : logoLight}
             alt="eXpert SARLU"
-            className={cn('object-contain', collapsed ? 'h-7 w-7' : 'h-8 max-w-[150px]')}
+            className={cn(
+              'object-contain object-left',
+              collapsed ? 'h-11 w-11' : 'h-14 w-auto max-w-[220px]',
+            )}
           />
         </div>
 

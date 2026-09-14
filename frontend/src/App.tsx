@@ -18,14 +18,31 @@ import { ClientPortalPage } from '@/features/client-portal/ClientPortalPage';
 import { SuiviPage } from '@/features/client-portal/SuiviPage';
 import { PartenairesPage } from '@/features/partenaires/PartenairesPage';
 import { SignerPage } from '@/features/facturation/SignerPage';
+import { PreInscriptionsPage } from '@/features/pre-inscriptions/PreInscriptionsPage';
 import { VersionChecker } from '@/components/VersionChecker';
 import { CommandPalette } from '@/components/CommandPalette';
+import { canAccessPath } from '@/lib/role-access';
 
 const SPLASH_KEY = 'expert-splash-done';
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
   const token = useAuthStore((s) => s.accessToken);
   if (!token) return <Navigate to="/login" replace />;
+  return <>{children}</>;
+}
+
+/** Bloque l’accès direct par URL aux modules hors périmètre du rôle. */
+function RoleRoute({
+  path,
+  children,
+}: {
+  path: string;
+  children: React.ReactNode;
+}) {
+  const user = useAuthStore((s) => s.user);
+  if (!canAccessPath(user?.role, path)) {
+    return <Navigate to="/" replace />;
+  }
   return <>{children}</>;
 }
 
@@ -73,20 +90,91 @@ export default function App() {
           }
         >
           <Route index element={<DashboardPage />} />
-          <Route path="dossiers" element={<DossiersPage />} />
-          <Route path="dossiers/:id" element={<DossierDetailPage />} />
-          <Route path="prospects" element={<ProspectsPage />} />
+          <Route
+            path="dossiers"
+            element={
+              <RoleRoute path="/dossiers">
+                <DossiersPage />
+              </RoleRoute>
+            }
+          />
+          <Route
+            path="nouveaux-patients"
+            element={
+              <RoleRoute path="/nouveaux-patients">
+                <PreInscriptionsPage />
+              </RoleRoute>
+            }
+          />
+          <Route
+            path="dossiers/:id"
+            element={
+              <RoleRoute path="/dossiers">
+                <DossierDetailPage />
+              </RoleRoute>
+            }
+          />
+          <Route
+            path="prospects"
+            element={
+              <RoleRoute path="/prospects">
+                <ProspectsPage />
+              </RoleRoute>
+            }
+          />
           <Route path="onboarding" element={<Navigate to="/prospects" replace />} />
-          <Route path="partenaires" element={<PartenairesPage />} />
+          <Route
+            path="partenaires"
+            element={
+              <RoleRoute path="/partenaires">
+                <PartenairesPage />
+              </RoleRoute>
+            }
+          />
           <Route path="inbox" element={<Navigate to="/prospects?tab=messages" replace />} />
           <Route path="messages" element={<Navigate to="/prospects?tab=messages" replace />} />
-          <Route path="logistique" element={<LogistiquePage />} />
-          <Route path="tarification" element={<TarificationPage />} />
-          <Route path="corbeille" element={<CorbeillePage />} />
-          <Route path="audit" element={<AuditPage />} />
+          <Route
+            path="logistique"
+            element={
+              <RoleRoute path="/logistique">
+                <LogistiquePage />
+              </RoleRoute>
+            }
+          />
+          <Route
+            path="tarification"
+            element={
+              <RoleRoute path="/tarification">
+                <TarificationPage />
+              </RoleRoute>
+            }
+          />
+          <Route
+            path="corbeille"
+            element={
+              <RoleRoute path="/corbeille">
+                <CorbeillePage />
+              </RoleRoute>
+            }
+          />
+          <Route
+            path="audit"
+            element={
+              <RoleRoute path="/audit">
+                <AuditPage />
+              </RoleRoute>
+            }
+          />
           <Route path="profil" element={<ProfilePage />} />
           <Route path="utilisateurs" element={<Navigate to="/equipe" replace />} />
-          <Route path="equipe" element={<UsersPage />} />
+          <Route
+            path="equipe"
+            element={
+              <RoleRoute path="/equipe">
+                <UsersPage />
+              </RoleRoute>
+            }
+          />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

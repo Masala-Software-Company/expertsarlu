@@ -3,7 +3,8 @@ import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
-import logoOnBlue from '@/assets/logos/logo-on-blue.jpg';
+import logoDark from '@/assets/logos/logo-dark.png';
+import logoLight from '@/assets/logos/logo-light.png';
 import { api } from '@/lib/api';
 import { useAuthStore } from './auth-store';
 import { Button } from '@/components/ui/Button';
@@ -60,18 +61,22 @@ export function LoginPage() {
 
   return (
     <div className="grid min-h-screen lg:grid-cols-2">
-      <div
-        className="relative hidden lg:flex items-center justify-center overflow-hidden"
-        style={{
-          backgroundImage: `linear-gradient(160deg, rgba(20,78,185,0.92), rgba(10,10,10,0.75)), url(${logoOnBlue})`,
-          backgroundSize: 'cover',
-          backgroundPosition: 'center',
-        }}
-      >
+      <div className="relative hidden items-center justify-center overflow-hidden bg-brand lg:flex">
+        <div
+          className="pointer-events-none absolute inset-0 opacity-40"
+          style={{
+            background:
+              'radial-gradient(ellipse 80% 60% at 30% 40%, rgba(255,255,255,0.25) 0%, transparent 60%)',
+          }}
+        />
         <div className="relative z-10 max-w-md px-10 text-white">
-          <img src={logoOnBlue} alt="eXpert SARLU" className="mb-8 h-16 object-contain mix-blend-normal rounded-lg" />
+          <img
+            src={logoDark}
+            alt="eXpert SARLU"
+            className="mb-10 h-20 w-auto max-w-[280px] object-contain drop-shadow-lg sm:h-24"
+          />
           <h1 className="text-4xl font-extrabold tracking-tight">Coordination médicale internationale</h1>
-          <p className="mt-4 text-white/80 text-lg leading-relaxed">
+          <p className="mt-4 text-lg leading-relaxed text-white/80">
             Dossiers patients, cotation, protocole et facturation — un seul poste de travail pour
             l’équipe eXpert.
           </p>
@@ -81,6 +86,11 @@ export function LoginPage() {
       <div className="flex items-center justify-center p-8">
         <form onSubmit={onSubmit} className="w-full max-w-sm space-y-5">
           <div>
+            <img
+              src={logoLight}
+              alt="eXpert SARLU"
+              className="mb-6 h-14 w-auto max-w-[220px] object-contain lg:hidden"
+            />
             <h2 className="text-2xl font-extrabold tracking-tight">Connexion</h2>
             <p className="mt-1 text-sm text-muted">Accès réservé au personnel eXpert SARLU</p>
           </div>

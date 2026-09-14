@@ -47,6 +47,12 @@ export class FacturationController {
     return this.facturation.pipelineFinancier();
   }
 
+  @Get('caisse')
+  @RequirePermission({ module: 'facturation', action: 'read' })
+  caisse() {
+    return this.facturation.fileCaisse();
+  }
+
   @Post('devis/:dossierId')
   @RequirePermission({ module: 'facturation', action: 'create' })
   devis(@Param('dossierId') dossierId: string, @CurrentUser() user: AuthUser) {

@@ -110,6 +110,24 @@ enum StatutDeverrouillage {
   EXPIRE
 }
 
+enum PreInscriptionStatut {
+  NOUVEAU
+  A_VERIFIER
+  INFORMATIONS_INCOMPLETES
+  VALIDE
+  REJETE
+  DOSSIER_CREE
+}
+
+enum TypeDocumentVoyage {
+  PASSEPORT_ORDINAIRE
+  PASSEPORT_DIPLOMATIQUE
+  PASSEPORT_SERVICE
+  PASSEPORT_OFFICIEL
+  PASSEPORT_SPECIAL
+  AUTRE
+}
+
 model User {
   id           String   @id @default(cuid())
   nom          String
@@ -134,6 +152,7 @@ model User {
   notifications           Notification[]
   refreshTokens           RefreshToken[]
   communications          Communication[]
+  preInscriptionsTraitees PreInscription[]      @relation("PreInscriptionTraiteur")
 
   @@map("users")
 }
@@ -182,6 +201,7 @@ model Dossier {
   valideParId             String?       @map("valide_par_id")
   supprimeLe              DateTime?     @map("supprime_le")
   supprimeParId           String?       @map("supprime_par_id")
+  partenaireId            String?       @map("partenaire_id")
   creeLe                  DateTime      @default(now()) @map("cree_le")
   majLe                   DateTime      @updatedAt @map("maj_le")
 
@@ -198,9 +218,12 @@ model Dossier {
   rendezVous        RendezVous[]
   demandesUnlock    DemandeDeverrouillage[]
   communications    Communication[]
+  partenaire        Partenaire?             @relation(fields: [partenaireId], references: [id])
+  preInscription    PreInscription?
 
   @@index([statut])
   @@index([creeParId])
+  @@index([partenaireId])
   @@map("dossiers")
 }
 
@@ -213,22 +236,29 @@ model DossierSequence {
 }
 
 model Patient {
-  id               String    @id @default(cuid())
-  dossierId        String    @unique @map("dossier_id")
-  nom              String
-  prenom           String
-  dateNaissance    DateTime? @map("date_naissance")
-  nationalite      String?
-  telephone        String?
-  email            String?
-  adresse          String?
-  documentIdentite String?   @map("document_identite")
-  numeroPasseport  String?   @map("numero_passeport")
-  photoProfil      String?   @map("photo_profil")
-  creeLe           DateTime  @default(now()) @map("cree_le")
+  id                   String    @id @default(cuid())
+  dossierId            String    @unique @map("dossier_id")
+  partenaireId         String?   @map("partenaire_id")
+  nom                  String
+  prenom               String
+  dateNaissance        DateTime? @map("date_naissance")
+  nationalite          String?
+  telephone            String?
+  email                String?
+  adresse              String?
+  documentIdentite     String?   @map("document_identite")
+  numeroPasseport      String?   @map("numero_passeport")
+  numeroNational       String?   @map("numero_national")
+  photoProfil          String?   @map("photo_profil")
+  donneesComplementaires Json?   @map("donnees_complementaires")
+  creeLe               DateTime  @default(now()) @map("cree_le")
 
-  dossier Dossier @relation(fields: [dossierId], references: [id], onDelete: Cascade)
+  dossier    Dossier     @relation(fields: [dossierId], references: [id], onDelete: Cascade)
+  partenaire Partenaire? @relation(fields: [partenaireId], references: [id])
 
+  @@index([partenaireId])
+  @@index([email])
+  @@index([numeroPasseport])
   @@map("patients")
 }
 
@@ -263,17 +293,64 @@ model Prospect {
 }
 
 model Partenaire {
-  id        String   @id @default(cuid())
-  nom       String
-  pays      String?
-  type      String?
-  contact   String?
-  email     String?
-  telephone String?
-  notes     String?
-  creeLe    DateTime @default(now()) @map("cree_le")
+  id           String   @id @default(cuid())
+  nom          String
+  nomNormalise String?  @unique @map("nom_normalise")
+  pays         String?
+  type         String?
+  contact      String?
+  email        String?
+  telephone    String?
+  adresse      String?
+  fax          String?
+  notes        String?
+  actif        Boolean  @default(true)
+  creeLe       DateTime @default(now()) @map("cree_le")
+  majLe        DateTime @default(now()) @updatedAt @map("maj_le")
+
+  dossiers         Dossier[]
+  patients         Patient[]
+  preInscriptions  PreInscription[]
 
   @@map("partenaires")
+}
+
+/// Demandes de pré-enregistrement (portail public Vercel → API Expert)
+model PreInscription {
+  id                   String               @id @default(cuid())
+  reference            String               @unique
+  statut               PreInscriptionStatut @default(NOUVEAU)
+  categorie            TypeClient
+  partenaireId         String?              @map("partenaire_id")
+  institutionSaisie    Json?                @map("institution_saisie")
+  nom                  String
+  prenom               String
+  dateNaissance        DateTime?            @map("date_naissance")
+  email                String?
+  telephone            String?
+  numeroPasseport      String?              @map("numero_passeport")
+  numeroNational       String?              @map("numero_national")
+  photoChemin          String?              @map("photo_chemin")
+  donnees              Json
+  dossierId            String?              @unique @map("dossier_id")
+  traiteParId          String?              @map("traite_par_id")
+  traiteLe             DateTime?            @map("traite_le")
+  motifRejet           String?              @map("motif_rejet")
+  historique           Json?
+  ipSoumission         String?              @map("ip_soumission")
+  userAgent            String?              @map("user_agent")
+  creeLe               DateTime             @default(now()) @map("cree_le")
+  majLe                DateTime             @updatedAt @map("maj_le")
+
+  partenaire Partenaire? @relation(fields: [partenaireId], references: [id])
+  dossier    Dossier?    @relation(fields: [dossierId], references: [id])
+  traitePar  User?       @relation("PreInscriptionTraiteur", fields: [traiteParId], references: [id])
+
+  @@index([statut])
+  @@index([categorie])
+  @@index([partenaireId])
+  @@index([creeLe])
+  @@map("pre_inscriptions")
 }
 
 model RendezVous {

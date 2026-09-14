@@ -9,7 +9,10 @@ async function bootstrap() {
 
   app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }));
 
-  const origins = (process.env.CORS_ORIGINS ?? 'http://localhost:1420')
+  const origins = (
+    process.env.CORS_ORIGINS ??
+    'http://localhost:1420,http://localhost:5174,http://localhost:5173'
+  )
     .split(',')
     .map((o) => o.trim())
     .filter(Boolean);

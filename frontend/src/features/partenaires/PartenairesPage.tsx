@@ -41,12 +41,12 @@ export function PartenairesPage() {
       (
         await api.post('/partenaires', {
           nom: form.nom.trim(),
-          pays: form.pays || undefined,
-          type: form.type || undefined,
-          contact: form.contact || undefined,
-          email: form.email || undefined,
-          telephone: form.telephone || undefined,
-          notes: form.notes || undefined,
+          pays: form.pays.trim() || undefined,
+          type: form.type.trim() || undefined,
+          contact: form.contact.trim() || undefined,
+          email: form.email.trim() || undefined,
+          telephone: form.telephone.trim() || undefined,
+          notes: form.notes.trim() || undefined,
         })
       ).data,
     onSuccess: () => {
@@ -63,14 +63,27 @@ export function PartenairesPage() {
       });
       toast.success('Partenaire ajouté');
     },
-    onError: () => toast.error('Création impossible'),
+    onError: (err: unknown) => {
+      const msg =
+        (err as { response?: { data?: { message?: string | string[] } } })?.response?.data
+          ?.message;
+      const text = Array.isArray(msg) ? msg.join(', ') : msg;
+      toast.error(text || 'Création impossible');
+    },
   });
 
   const remove = useMutation({
     mutationFn: async (id: string) => (await api.delete(`/partenaires/${id}`)).data,
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ['partenaires'] });
-      toast.success('Partenaire supprimé');
+      toast.success('Partenaire désactivé');
+    },
+    onError: (err: unknown) => {
+      const msg =
+        (err as { response?: { data?: { message?: string | string[] } } })?.response?.data
+          ?.message;
+      const text = Array.isArray(msg) ? msg.join(', ') : msg;
+      toast.error(text || 'Suppression impossible');
     },
   });
 

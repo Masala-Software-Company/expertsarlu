@@ -25,6 +25,7 @@ import { InboxModule } from './inbox/inbox.module';
 import { JobsModule } from './jobs/jobs.module';
 import { PdfModule } from './pdf/pdf.module';
 import { MailModule } from './mail/mail.module';
+import { PreInscriptionsModule } from './pre-inscriptions/pre-inscriptions.module';
 import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
 import { PermissionsGuard } from './auth/guards/permissions.guard';
 import { AuditInterceptor } from './audit/audit.interceptor';
@@ -55,6 +56,7 @@ import { AuditInterceptor } from './audit/audit.interceptor';
     PartenairesModule,
     CommunicationsModule,
     InboxModule,
+    PreInscriptionsModule,
     JobsModule,
   ],
   providers: [

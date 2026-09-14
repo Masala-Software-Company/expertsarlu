@@ -17,6 +17,8 @@ type NotifPayload = {
   numero?: string;
   motif?: string;
   demandePar?: string;
+  preInscriptionId?: string;
+  reference?: string;
 };
 
 type Notif = {
@@ -44,6 +46,8 @@ function typeLabel(type: string) {
     case 'CLIENT_INSCRIPTION':
     case 'PORTAIL_INSCRIPTION':
       return 'Portail client';
+    case 'PRE_INSCRIPTION':
+      return 'Nouveau patient';
     case 'RAPPEL_DEVIS':
       return 'Devis';
     case 'PURGE_CORBEILLE':
@@ -136,8 +140,12 @@ export function NotificationBell() {
 
   const openDossier = (n: Notif) => {
     if (!n.lu) markRead.mutate(n.id);
-    const dossierId = n.payload?.dossierId;
     setOpen(false);
+    if (n.type === 'PRE_INSCRIPTION') {
+      navigate('/nouveaux-patients');
+      return;
+    }
+    const dossierId = n.payload?.dossierId;
     if (dossierId) navigate(`/dossiers/${dossierId}`);
   };
 
@@ -204,7 +212,11 @@ export function NotificationBell() {
                       <div className="min-w-0">
                         <div className="text-[10px] font-bold uppercase tracking-wide text-brand">
                           {typeLabel(n.type)}
-                          {payload.numero ? ` · ${payload.numero}` : ''}
+                          {payload.numero
+                            ? ` · ${payload.numero}`
+                            : payload.reference
+                              ? ` · ${payload.reference}`
+                              : ''}
                         </div>
                         <div className="mt-0.5 text-sm font-semibold leading-snug">{n.titre}</div>
                         {payload.motif && (

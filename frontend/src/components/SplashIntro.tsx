@@ -52,7 +52,7 @@ export function SplashIntro({ onDone }: Props) {
         <img
           src={logoDark}
           alt="eXpert SARLU"
-          className="h-16 w-auto max-w-[min(72vw,420px)] object-contain drop-shadow-[0_0_40px_rgba(20,78,185,0.55)] sm:h-20"
+          className="h-24 w-auto max-w-[min(80vw,520px)] object-contain drop-shadow-[0_0_40px_rgba(20,78,185,0.55)] sm:h-28"
           draggable={false}
         />
         <div className="mt-8 h-[2px] w-24 overflow-hidden rounded-full bg-white/10">

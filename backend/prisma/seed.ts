@@ -1,78 +1,12 @@
-import { PrismaClient, RoleName } from '@prisma/client';
+import { PrismaClient } from '@prisma/client';
 import * as argon2 from 'argon2';
+import { buildPermissionRows } from '../src/auth/permissions.matrix';
 
 const prisma = new PrismaClient();
 
-const MODULE_ACTIONS: Record<string, string[]> = {
-  dossiers: ['create', 'read', 'update', 'delete', 'validate', 'unlock'],
-  cotation: ['create', 'read', 'update'],
-  facturation: ['create', 'read', 'update'],
-  logistique: ['create', 'read', 'update'],
-  ged: ['create', 'read', 'update', 'delete'],
-  prospects: ['create', 'read', 'update'],
-  partenaires: ['create', 'read', 'update'],
-  audit: ['read'],
-  users: ['create', 'read', 'update', 'delete'],
-  tarification: ['read', 'update'],
-  notifications: ['read', 'update'],
-};
-
-const ROLE_MODULES: Record<RoleName, string[]> = {
-  SUPER_ADMIN: Object.keys(MODULE_ACTIONS),
-  ASSISTANT_MANAGER: [
-    'dossiers',
-    'cotation',
-    'facturation',
-    'logistique',
-    'ged',
-    'notifications',
-    'audit',
-  ],
-  SUPPORT_CLIENT: ['dossiers', 'prospects', 'partenaires', 'ged', 'notifications'],
-  CAISSE_ADMIN: ['dossiers', 'cotation', 'facturation', 'ged', 'notifications'],
-  PROTOCOLE: ['dossiers', 'logistique', 'ged', 'notifications'],
-};
-
-const ROLE_ACTIONS: Partial<Record<RoleName, Record<string, string[]>>> = {
-  ASSISTANT_MANAGER: {
-    dossiers: ['create', 'read', 'update', 'delete', 'validate'],
-    audit: ['read'],
-  },
-  SUPPORT_CLIENT: {
-    dossiers: ['create', 'read', 'update'],
-  },
-  CAISSE_ADMIN: {
-    dossiers: ['read', 'update'],
-    cotation: ['create', 'read', 'update'],
-    facturation: ['create', 'read', 'update'],
-  },
-  PROTOCOLE: {
-    dossiers: ['read', 'update'],
-  },
-};
-
 async function seedPermissions() {
   await prisma.permission.deleteMany();
-  const rows: { role: RoleName; module: string; action: string }[] = [];
-
-  for (const role of Object.keys(ROLE_MODULES) as RoleName[]) {
-    if (role === 'SUPER_ADMIN') {
-      for (const [mod, actions] of Object.entries(MODULE_ACTIONS)) {
-        for (const action of actions) {
-          rows.push({ role, module: mod, action });
-        }
-      }
-      continue;
-    }
-    for (const mod of ROLE_MODULES[role]) {
-      const actions =
-        ROLE_ACTIONS[role]?.[mod] ?? MODULE_ACTIONS[mod] ?? ['read'];
-      for (const action of actions) {
-        rows.push({ role, module: mod, action });
-      }
-    }
-  }
-
+  const rows = buildPermissionRows();
   await prisma.permission.createMany({ data: rows });
   console.log(`Permissions: ${rows.length}`);
 }

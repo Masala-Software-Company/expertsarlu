@@ -272,6 +272,23 @@ export class FacturationService {
     return facture;
   }
 
+  /** File d’attente caisse : devis / factures non soldés. */
+  async fileCaisse() {
+    return this.prisma.facture.findMany({
+      where: { statut: { notIn: ['ANNULE'] } },
+      orderBy: { creeLe: 'desc' },
+      take: 40,
+      include: {
+        dossier: {
+          select: {
+            numero: true,
+            patient: { select: { prenom: true, nom: true } },
+          },
+        },
+      },
+    });
+  }
+
   async pipelineFinancier() {
     const factures = await this.prisma.facture.findMany({
       include: {

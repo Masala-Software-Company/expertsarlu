@@ -36,6 +36,15 @@ export function DossierDetailPage() {
   const qc = useQueryClient();
   const canFinance = usePermission('cotation', 'read');
   const canFactu = usePermission('facturation', 'read');
+  const canLogistique = usePermission('logistique', 'read');
+  const canComms =
+    user?.role === 'SUPER_ADMIN' ||
+    user?.role === 'ASSISTANT_MANAGER' ||
+    user?.role === 'SUPPORT_CLIENT';
+  const canPostRetour =
+    user?.role === 'SUPER_ADMIN' ||
+    user?.role === 'ASSISTANT_MANAGER' ||
+    user?.role === 'SUPPORT_CLIENT';
 
   const { data: dossier, isLoading } = useQuery({
     queryKey: ['dossier', id],
@@ -166,12 +175,12 @@ export function DossierDetailPage() {
       { id: 'cotation', label: 'Cotation', hide: !canFinance },
       { id: 'facturation', label: 'Facturation', hide: !canFactu },
       { id: 'documents', label: 'Documents' },
-      { id: 'logistique', label: 'Logistique' },
-      { id: 'communications', label: 'Communications' },
-      { id: 'postretour', label: 'Post-retour' },
+      { id: 'logistique', label: 'Logistique', hide: !canLogistique },
+      { id: 'communications', label: 'Communications', hide: !canComms },
+      { id: 'postretour', label: 'Post-retour', hide: !canPostRetour },
     ];
     return all.filter((t) => !t.hide);
-  }, [canFinance, canFactu]);
+  }, [canFinance, canFactu, canLogistique, canComms, canPostRetour]);
 
   if (isLoading || !dossier) {
     return <div className="animate-pulse h-40 rounded-2xl bg-surface shadow-soft" />;

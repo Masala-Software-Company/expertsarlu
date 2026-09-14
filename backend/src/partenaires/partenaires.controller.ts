@@ -6,6 +6,7 @@ import {
   Param,
   Patch,
   Post,
+  Query,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiProperty, ApiPropertyOptional, ApiTags } from '@nestjs/swagger';
 import { IsOptional, IsString, MinLength } from 'class-validator';
@@ -57,8 +58,14 @@ export class PartenairesController {
 
   @Get()
   @RequirePermission({ module: 'partenaires', action: 'read' })
-  list() {
-    return this.partenaires.list();
+  list(@Query('all') all?: string) {
+    return this.partenaires.list(all === '1' || all === 'true');
+  }
+
+  @Get(':id/patients')
+  @RequirePermission({ module: 'partenaires', action: 'read' })
+  patients(@Param('id') id: string) {
+    return this.partenaires.patients(id);
   }
 
   @Post()
@@ -69,7 +76,7 @@ export class PartenairesController {
 
   @Patch(':id')
   @RequirePermission({ module: 'partenaires', action: 'update' })
-  update(@Param('id') id: string, @Body() dto: PartenaireDto) {
+  update(@Param('id') id: string, @Body() dto: PartenaireDto & { actif?: boolean }) {
     return this.partenaires.update(id, dto);
   }
 

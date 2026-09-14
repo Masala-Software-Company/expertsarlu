@@ -4,6 +4,8 @@ import { Command } from 'cmdk';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { useUiStore } from '@/lib/ui-store';
+import { useAuthStore } from '@/features/auth/auth-store';
+import { dashboardAccessLinks, canAccessPath } from '@/lib/role-access';
 
 type Dossier = { id: string; numero: string; patient?: { nom: string; prenom: string } };
 
@@ -11,6 +13,7 @@ export function CommandPalette() {
   const open = useUiStore((s) => s.commandOpen);
   const setOpen = useUiStore((s) => s.setCommandOpen);
   const navigate = useNavigate();
+  const user = useAuthStore((s) => s.user);
   const [q, setQ] = useState('');
 
   useEffect(() => {
@@ -30,20 +33,27 @@ export function CommandPalette() {
       const { data } = await api.get<Dossier[]>('/dossiers', { params: { q: q || undefined } });
       return data;
     },
-    enabled: open,
+    enabled: open && canAccessPath(user?.role, '/dossiers'),
   });
 
-  const actions = useMemo(
-    () => [
+  const actions = useMemo(() => {
+    const links = [
       { id: 'dash', label: 'Tableau de bord', to: '/' },
-      { id: 'dos', label: 'Tous les dossiers', to: '/dossiers' },
-      { id: 'pros', label: 'Onboarding', to: '/prospects' },
-      { id: 'messages', label: 'Messages (Onboarding)', to: '/prospects?tab=messages' },
-      { id: 'log', label: 'Logistique / Planning', to: '/logistique' },
-      { id: 'users', label: 'Équipe', to: '/equipe' },
-    ],
-    [],
-  );
+      ...dashboardAccessLinks(user?.role).map((n) => ({
+        id: n.to,
+        label: n.label,
+        to: n.to,
+      })),
+    ];
+    if (canAccessPath(user?.role, '/prospects')) {
+      links.push({
+        id: 'messages',
+        label: 'Messages (Onboarding)',
+        to: '/prospects?tab=messages',
+      });
+    }
+    return links;
+  }, [user?.role]);
 
   if (!open) return null;
 
@@ -79,26 +89,28 @@ export function CommandPalette() {
                 </Command.Item>
               ))}
             </Command.Group>
-            <Command.Group heading="Dossiers" className="px-2 py-1 text-xs font-semibold text-muted">
-              {dossiers.slice(0, 8).map((d) => (
-                <Command.Item
-                  key={d.id}
-                  value={`${d.numero} ${d.patient?.nom ?? ''}`}
-                  onSelect={() => {
-                    navigate(`/dossiers/${d.id}`);
-                    setOpen(false);
-                  }}
-                  className="cursor-pointer rounded-lg px-3 py-2 text-sm aria-selected:bg-brand/10"
-                >
-                  <span className="font-semibold text-brand">{d.numero}</span>
-                  {d.patient && (
-                    <span className="ml-2 text-muted">
-                      {d.patient.prenom} {d.patient.nom}
-                    </span>
-                  )}
-                </Command.Item>
-              ))}
-            </Command.Group>
+            {canAccessPath(user?.role, '/dossiers') && (
+              <Command.Group heading="Dossiers" className="px-2 py-1 text-xs font-semibold text-muted">
+                {dossiers.slice(0, 8).map((d) => (
+                  <Command.Item
+                    key={d.id}
+                    value={`${d.numero} ${d.patient?.nom ?? ''}`}
+                    onSelect={() => {
+                      navigate(`/dossiers/${d.id}`);
+                      setOpen(false);
+                    }}
+                    className="cursor-pointer rounded-lg px-3 py-2 text-sm aria-selected:bg-brand/10"
+                  >
+                    <span className="font-semibold text-brand">{d.numero}</span>
+                    {d.patient && (
+                      <span className="ml-2 text-muted">
+                        {d.patient.prenom} {d.patient.nom}
+                      </span>
+                    )}
+                  </Command.Item>
+                ))}
+              </Command.Group>
+            )}
           </Command.List>
         </Command>
       </div>
