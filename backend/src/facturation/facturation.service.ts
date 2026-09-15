@@ -580,13 +580,122 @@ export class FacturationService {
     });
     if (!facture) throw new NotFoundException('Code de vérification invalide');
     return {
-      valide: true,
-      ...facture,
+      valide: true as const,
+      numero: facture.numero,
+      type: facture.type,
+      montantTotal: facture.montantTotal,
+      devise: facture.devise,
+      codeVerification: facture.codeVerification,
+      creeLe: facture.creeLe,
       patient: facture.dossier.patient
         ? `${facture.dossier.patient.prenom} ${facture.dossier.patient.nom}`
         : null,
       dossierNumero: facture.dossier.numero,
     };
+  }
+
+  /** Page HTML publique (scan QR) — pas de JSON brut. */
+  renderVerifierHtml(
+    result:
+      | {
+          valide: true;
+          numero: string;
+          type: string;
+          montantTotal: unknown;
+          devise: string;
+          codeVerification: string | null;
+          creeLe: Date;
+          patient: string | null;
+          dossierNumero: string;
+        }
+      | null,
+    code: string,
+  ) {
+    const brand = '#144EB9';
+    if (!result) {
+      return `<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Document non authentifié — eXpert SARLU</title>
+  <style>
+    body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:#071428;color:#0f172a;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px}
+    .card{background:#fff;border-radius:24px;max-width:420px;width:100%;padding:32px;box-shadow:0 30px 60px rgba(0,0,0,.35)}
+    .badge{display:inline-block;background:#fef2f2;color:#b91c1c;font-size:12px;font-weight:700;padding:6px 12px;border-radius:999px;letter-spacing:.04em}
+    h1{font-size:22px;margin:16px 0 8px}
+    p{color:#64748b;line-height:1.5;margin:0}
+    .code{margin-top:20px;font-family:ui-monospace,monospace;font-size:13px;color:#94a3b8;word-break:break-all}
+    .brand{color:${brand};font-weight:800;font-size:13px;letter-spacing:.08em;text-transform:uppercase}
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="brand">eXpert SARLU</div>
+    <div style="margin-top:16px" class="badge">NON AUTHENTIFIÉ</div>
+    <h1>Document introuvable</h1>
+    <p>Ce code de vérification n’est pas reconnu. Le document peut être falsifié, obsolète ou mal scanné.</p>
+    <div class="code">Code saisi : ${escapeHtml(code)}</div>
+  </div>
+</body>
+</html>`;
+    }
+
+    const typeLabel = String(result.type).toUpperCase().includes('FACTURE')
+      ? 'Facture'
+      : 'Devis';
+    const montant = Number(result.montantTotal).toLocaleString('fr-FR', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
+    const date = new Date(result.creeLe).toLocaleString('fr-FR', {
+      day: '2-digit',
+      month: 'long',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+
+    return `<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Document authentifié — ${escapeHtml(result.numero)}</title>
+  <style>
+    body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:#071428;color:#0f172a;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px}
+    .card{background:#fff;border-radius:24px;max-width:440px;width:100%;padding:32px;box-shadow:0 30px 60px rgba(0,0,0,.35)}
+    .badge{display:inline-block;background:#ecfdf5;color:#047857;font-size:12px;font-weight:700;padding:6px 12px;border-radius:999px;letter-spacing:.04em}
+    h1{font-size:24px;margin:14px 0 4px}
+    .sub{color:#64748b;margin:0 0 20px;font-size:14px}
+    .row{display:flex;justify-content:space-between;gap:12px;padding:12px 0;border-bottom:1px solid #f1f5f9;font-size:14px}
+    .row span:first-child{color:#94a3b8;font-weight:600;font-size:12px;text-transform:uppercase;letter-spacing:.04em}
+    .row span:last-child{font-weight:700;text-align:right}
+    .brand{color:${brand};font-weight:800;font-size:13px;letter-spacing:.08em;text-transform:uppercase}
+    .code{margin-top:18px;padding:14px;border-radius:14px;background:#f8fafc;border:1px solid #e2e8f0;text-align:center}
+    .code small{display:block;color:#94a3b8;font-size:11px;margin-bottom:4px}
+    .code strong{color:${brand};font-size:18px;letter-spacing:.08em}
+    footer{margin-top:22px;font-size:11px;color:#94a3b8;text-align:center;line-height:1.4}
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="brand">eXpert SARLU</div>
+    <div style="margin-top:16px" class="badge">DOCUMENT AUTHENTIQUE</div>
+    <h1>${escapeHtml(typeLabel)} ${escapeHtml(result.numero)}</h1>
+    <p class="sub">Ce document a été émis par L’EXPERT SARLU et est authentifié.</p>
+    <div class="row"><span>Client</span><span>${escapeHtml(result.patient || '—')}</span></div>
+    <div class="row"><span>Dossier</span><span>${escapeHtml(result.dossierNumero)}</span></div>
+    <div class="row"><span>Montant</span><span>${montant} ${escapeHtml(result.devise || 'USD')}</span></div>
+    <div class="row"><span>Émis le</span><span>${escapeHtml(date)}</span></div>
+    <div class="code">
+      <small>Code de vérification</small>
+      <strong>${escapeHtml(result.codeVerification || code)}</strong>
+    </div>
+    <footer>Évacuation & Mobilité Médicale Internationale<br/>Document vérifié en ligne — ne partagez pas ce code hors contexte professionnel.</footer>
+  </div>
+</body>
+</html>`;
   }
 
   async supprimerFacture(factureId: string, user: AuthUser) {
@@ -749,4 +858,13 @@ export class FacturationService {
     }
     return results;
   }
+}
+
+function escapeHtml(value: string) {
+  return String(value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
 }

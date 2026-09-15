@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, Res } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Headers, Param, Patch, Post, Query, Res } from '@nestjs/common';
 import {
   ApiBearerAuth,
   ApiProperty,
@@ -169,8 +169,36 @@ export class FacturationController {
 
   @Public()
   @Get('verifier/:code')
-  verifier(@Param('code') code: string) {
-    return this.facturation.verifierParCode(code);
+  async verifier(
+    @Param('code') code: string,
+    @Res() res: Response,
+    @Query('format') format?: string,
+    @Headers('accept') accept?: string,
+  ) {
+    const wantsJson =
+      format === 'json' || (accept ?? '').includes('application/json');
+
+    try {
+      const data = await this.facturation.verifierParCode(code);
+      if (wantsJson) {
+        return res.json(data);
+      }
+      res.setHeader('Content-Type', 'text/html; charset=utf-8');
+      res.setHeader('Cache-Control', 'no-store');
+      return res.send(this.facturation.renderVerifierHtml(data, code));
+    } catch {
+      if (wantsJson) {
+        return res.status(404).json({
+          message: 'Code de vérification invalide',
+          error: 'Not Found',
+          statusCode: 404,
+        });
+      }
+      res.status(404);
+      res.setHeader('Content-Type', 'text/html; charset=utf-8');
+      res.setHeader('Cache-Control', 'no-store');
+      return res.send(this.facturation.renderVerifierHtml(null, code));
+    }
   }
 
   @Public()
