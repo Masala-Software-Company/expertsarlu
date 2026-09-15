@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { toast } from 'sonner';
@@ -16,6 +16,7 @@ import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Can } from '@/hooks/usePermission';
 import { PatientAvatar } from '@/components/PatientAvatar';
+import { CreateDossierWizard } from './CreateDossierWizard';
 
 export type DossierRow = {
   id: string;
@@ -262,129 +263,12 @@ export function DossiersPage() {
       )}
 
       {open && (
-        <CreateDossierDrawer
+        <CreateDossierWizard
           onClose={() => setOpen(false)}
           onSubmit={(payload) => create.mutate(payload)}
           loading={create.isPending}
         />
       )}
-    </div>
-  );
-}
-
-function CreateDossierDrawer({
-  onClose,
-  onSubmit,
-  loading,
-}: {
-  onClose: () => void;
-  onSubmit: (p: { data: Record<string, unknown>; photo?: File | null }) => void;
-  loading: boolean;
-}) {
-  const [form, setForm] = useState({
-    typeClient: 'PARTICULIER',
-    destination: '',
-    pathologie: '',
-    priorite: 'NORMALE',
-    patientNom: '',
-    patientPrenom: '',
-    telephone: '',
-  });
-  const [photo, setPhoto] = useState<File | null>(null);
-  const [preview, setPreview] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!photo) {
-      setPreview(null);
-      return;
-    }
-    const url = URL.createObjectURL(photo);
-    setPreview(url);
-    return () => URL.revokeObjectURL(url);
-  }, [photo]);
-
-  return (
-    <div className="fixed inset-0 z-50 flex justify-end bg-black/40" onClick={onClose}>
-      <div
-        className="h-full w-full max-w-md overflow-auto bg-surface p-6 shadow-soft"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <h2 className="text-xl font-extrabold">Nouveau dossier</h2>
-        <p className="mt-1 text-sm text-muted">Le numéro MED sera généré automatiquement.</p>
-        <div className="mt-6 space-y-4">
-          <div className="flex flex-col items-center gap-2 rounded-2xl border border-dashed border-[var(--border)] bg-canvas px-4 py-5">
-            <div className="flex h-20 w-20 items-center justify-center overflow-hidden rounded-full bg-brand/15 text-2xl font-bold text-brand">
-              {preview ? (
-                <img src={preview} alt="" className="h-full w-full object-cover" />
-              ) : (
-                (form.patientPrenom.charAt(0) || form.patientNom.charAt(0) || '?').toUpperCase()
-              )}
-            </div>
-            <label className="cursor-pointer text-xs font-semibold text-brand">
-              {photo ? 'Changer la photo' : 'Ajouter la photo du patient'}
-              <input
-                type="file"
-                accept="image/*"
-                className="hidden"
-                onChange={(e) => setPhoto(e.target.files?.[0] ?? null)}
-              />
-            </label>
-            {photo && (
-              <button
-                type="button"
-                className="text-[11px] text-muted hover:text-danger"
-                onClick={() => setPhoto(null)}
-              >
-                Retirer
-              </button>
-            )}
-          </div>
-          {(
-            [
-              ['destination', 'Destination'],
-              ['pathologie', 'Pathologie'],
-              ['patientNom', 'Nom patient'],
-              ['patientPrenom', 'Prénom patient'],
-              ['telephone', 'Téléphone'],
-            ] as const
-          ).map(([key, label]) => (
-            <div key={key} className="space-y-1">
-              <label className="text-sm font-medium">{label}</label>
-              <Input
-                value={form[key]}
-                onChange={(e) => setForm((f) => ({ ...f, [key]: e.target.value }))}
-              />
-            </div>
-          ))}
-          <div className="flex gap-2 pt-2">
-            <Button variant="secondary" className="flex-1" onClick={onClose}>
-              Annuler
-            </Button>
-            <Button
-              className="flex-1"
-              disabled={loading || !form.patientNom}
-              onClick={() =>
-                onSubmit({
-                  data: {
-                    typeClient: form.typeClient,
-                    destination: form.destination,
-                    pathologie: form.pathologie,
-                    priorite: form.priorite,
-                    patient: {
-                      nom: form.patientNom,
-                      prenom: form.patientPrenom,
-                      telephone: form.telephone,
-                    },
-                  },
-                  photo,
-                })
-              }
-            >
-              Créer
-            </Button>
-          </div>
-        </div>
-      </div>
     </div>
   );
 }

@@ -117,9 +117,11 @@ function elementLabel(log: Log) {
 
 export function AuditPage() {
   const [q, setQ] = useState('');
+  const [page, setPage] = useState(1);
+  const pageSize = 10;
   const { data = [], isLoading } = useQuery({
     queryKey: ['audit'],
-    queryFn: async () => (await api.get<Log[]>('/audit', { params: { limit: 150 } })).data,
+    queryFn: async () => (await api.get<Log[]>('/audit', { params: { limit: 500 } })).data,
   });
 
   const filtered = useMemo(() => {
@@ -137,21 +139,41 @@ export function AuditPage() {
     });
   }, [data, q]);
 
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const currentPage = Math.min(page, totalPages);
+  const pageItems = filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+
+  const pages = useMemo(() => {
+    const window = 2;
+    const out: (number | '…')[] = [];
+    for (let i = 1; i <= totalPages; i++) {
+      if (i === 1 || i === totalPages || Math.abs(i - currentPage) <= window) {
+        out.push(i);
+      } else if (out[out.length - 1] !== '…') {
+        out.push('…');
+      }
+    }
+    return out;
+  }, [currentPage, totalPages]);
+
   return (
     <div className="space-y-5">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="text-3xl font-extrabold tracking-tight">Journal d’activité</h1>
           <p className="mt-1 text-sm text-muted">
-            Historique des actions réalisées dans eXpert — {data.length} événement
-            {data.length > 1 ? 's' : ''} récents.
+            Historique des actions — {filtered.length} événement
+            {filtered.length > 1 ? 's' : ''} · page {currentPage}/{totalPages}
           </p>
         </div>
         <Input
           className="max-w-xs"
           placeholder="Filtrer (collaborateur, action…)"
           value={q}
-          onChange={(e) => setQ(e.target.value)}
+          onChange={(e) => {
+            setQ(e.target.value);
+            setPage(1);
+          }}
         />
       </div>
 
@@ -166,7 +188,7 @@ export function AuditPage() {
             </tr>
           </thead>
           <tbody>
-            {filtered.map((l) => (
+            {pageItems.map((l) => (
               <tr key={l.id} className="border-t border-[var(--border)] hover:bg-brand/[0.03]">
                 <td className="px-4 py-3 whitespace-nowrap text-muted">
                   {format(new Date(l.timestamp), "dd MMM yyyy 'à' HH:mm", { locale: fr })}
@@ -190,7 +212,7 @@ export function AuditPage() {
                 <td className="px-4 py-3 text-muted">{elementLabel(l)}</td>
               </tr>
             ))}
-            {!isLoading && filtered.length === 0 && (
+            {!isLoading && pageItems.length === 0 && (
               <tr>
                 <td colSpan={4} className="px-4 py-12 text-center text-muted">
                   Aucune activité enregistrée pour ces critères.
@@ -200,6 +222,48 @@ export function AuditPage() {
           </tbody>
         </table>
       </div>
+
+      {totalPages > 1 && (
+        <nav className="flex flex-wrap items-center justify-center gap-1.5 pt-2" aria-label="Pagination">
+          <button
+            type="button"
+            disabled={currentPage <= 1}
+            onClick={() => setPage((p) => Math.max(1, p - 1))}
+            className="rounded-lg px-3 py-1.5 text-sm font-semibold text-brand disabled:opacity-40"
+          >
+            Précédent
+          </button>
+          {pages.map((p, idx) =>
+            p === '…' ? (
+              <span key={`e-${idx}`} className="px-2 text-muted">
+                …
+              </span>
+            ) : (
+              <button
+                key={p}
+                type="button"
+                onClick={() => setPage(p)}
+                className={cn(
+                  'min-w-9 rounded-lg px-3 py-1.5 text-sm font-semibold',
+                  p === currentPage
+                    ? 'bg-brand text-white'
+                    : 'text-brand hover:bg-brand/10',
+                )}
+              >
+                {p}
+              </button>
+            ),
+          )}
+          <button
+            type="button"
+            disabled={currentPage >= totalPages}
+            onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+            className="rounded-lg px-3 py-1.5 text-sm font-semibold text-brand disabled:opacity-40"
+          >
+            Suivant
+          </button>
+        </nav>
+      )}
     </div>
   );
 }

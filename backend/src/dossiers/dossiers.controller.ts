@@ -7,14 +7,26 @@ import {
   Patch,
   Post,
   Query,
+  Res,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiProperty, ApiTags } from '@nestjs/swagger';
 import { IsString, MinLength } from 'class-validator';
+import type { Response } from 'express';
 import { DossiersService } from './dossiers.service';
 import { CreateDossierDto } from './dto/create-dossier.dto';
 import { UpdateDossierDto } from './dto/update-dossier.dto';
 import { CurrentUser, AuthUser } from '../auth/current-user.decorator';
 import { RequirePermission, RequireRole } from '../auth/decorators';
+import { PdfService } from '../pdf/pdf.service';
+
+const STATUT_LABELS: Record<string, string> = {
+  BROUILLON: 'Brouillon',
+  EN_COURS: 'En cours',
+  VALIDE: 'Validé',
+  FACTURE_PAYE: 'Facture payée',
+  VERROUILLE: 'Verrouillé',
+  ARCHIVE_SUPPRIME: 'Archivé',
+};
 
 class MotifDto {
   @ApiProperty()
@@ -33,7 +45,10 @@ class HardDeleteDto {
 @ApiBearerAuth()
 @Controller('dossiers')
 export class DossiersController {
-  constructor(private dossiers: DossiersService) {}
+  constructor(
+    private dossiers: DossiersService,
+    private pdf: PdfService,
+  ) {}
 
   @Post()
   @RequirePermission({ module: 'dossiers', action: 'create' })
@@ -136,6 +151,26 @@ export class DossiersController {
   @RequirePermission({ module: 'dossiers', action: 'read' })
   suiviToken(@Param('id') id: string, @CurrentUser() user: AuthUser) {
     return this.dossiers.ensureSuiviToken(id, user);
+  }
+
+  @Get(':id/carte-assistance')
+  @RequirePermission({ module: 'dossiers', action: 'read' })
+  async carteAssistance(
+    @Param('id') id: string,
+    @CurrentUser() user: AuthUser,
+    @Res() res: Response,
+  ) {
+    const data = await this.dossiers.buildAssistanceCardData(id, user);
+    const buffer = await this.pdf.renderAssistanceCard({
+      ...data,
+      statut: STATUT_LABELS[data.statut] ?? data.statut,
+    });
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename="carte-assistance-${data.numero}.pdf"`,
+    );
+    res.send(buffer);
   }
 
   @Patch(':id/post-retour')

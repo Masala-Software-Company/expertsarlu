@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, Res } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Res } from '@nestjs/common';
 import {
   ApiBearerAuth,
   ApiProperty,
@@ -35,6 +35,13 @@ class SignerDto {
   nom!: string;
 }
 
+class MotifDto {
+  @ApiProperty()
+  @IsString()
+  @MinLength(3)
+  motif!: string;
+}
+
 @ApiTags('facturation')
 @ApiBearerAuth()
 @Controller('facturation')
@@ -51,6 +58,45 @@ export class FacturationController {
   @RequirePermission({ module: 'facturation', action: 'read' })
   caisse() {
     return this.facturation.fileCaisse();
+  }
+
+  @Get('demandes-suppression')
+  @RequireRole('SUPER_ADMIN')
+  demandesSuppression() {
+    return this.facturation.listDemandesSuppression();
+  }
+
+  @Patch('demandes-suppression/:demandeId/approuver')
+  @RequireRole('SUPER_ADMIN')
+  approuverSuppression(
+    @Param('demandeId') demandeId: string,
+    @CurrentUser() user: AuthUser,
+  ) {
+    return this.facturation.approuverSuppression(demandeId, user);
+  }
+
+  @Patch('demandes-suppression/:demandeId/refuser')
+  @RequireRole('SUPER_ADMIN')
+  refuserSuppression(
+    @Param('demandeId') demandeId: string,
+    @CurrentUser() user: AuthUser,
+    @Body() dto: { motif?: string },
+  ) {
+    return this.facturation.refuserSuppression(demandeId, user, dto.motif);
+  }
+
+  @Post('manuel/:dossierId')
+  @RequirePermission({ module: 'facturation', action: 'create' })
+  manuel(
+    @Param('dossierId') dossierId: string,
+    @CurrentUser() user: AuthUser,
+    @Body()
+    dto: {
+      type?: 'FACTURE' | 'DEVIS';
+      lignes: { code?: string; description: string; quantite?: number; montant: number }[];
+    },
+  ) {
+    return this.facturation.creerFactureManuelle(dossierId, user, dto);
   }
 
   @Post('devis/:dossierId')
@@ -86,13 +132,45 @@ export class FacturationController {
     return this.facturation.regenererPdf(factureId);
   }
 
+  @Post('regenerer-tous-pdfs')
+  @RequireRole('SUPER_ADMIN')
+  regenererTous() {
+    return this.facturation.regenererTousLesPdfs();
+  }
+
   @Get('factures/:factureId/pdf')
   @RequirePermission({ module: 'facturation', action: 'read' })
   async pdf(@Param('factureId') factureId: string, @Res() res: Response) {
-    const opened = await this.facturation.getPdfStream(factureId);
-    res.setHeader('Content-Type', opened.contentType || 'application/pdf');
-    res.setHeader('Content-Disposition', `inline; filename="facture-${factureId}.pdf"`);
-    opened.stream.pipe(res);
+    const { buffer, filename } = await this.facturation.getPdfBuffer(factureId);
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.setHeader('Cache-Control', 'no-store');
+    res.send(buffer);
+  }
+
+  @Delete('factures/:factureId')
+  @RequireRole('SUPER_ADMIN')
+  supprimer(
+    @Param('factureId') factureId: string,
+    @CurrentUser() user: AuthUser,
+  ) {
+    return this.facturation.supprimerFacture(factureId, user);
+  }
+
+  @Post('factures/:factureId/demande-suppression')
+  @RequirePermission({ module: 'facturation', action: 'create' })
+  demandeSuppression(
+    @Param('factureId') factureId: string,
+    @CurrentUser() user: AuthUser,
+    @Body() dto: MotifDto,
+  ) {
+    return this.facturation.demanderSuppression(factureId, user, dto.motif);
+  }
+
+  @Public()
+  @Get('verifier/:code')
+  verifier(@Param('code') code: string) {
+    return this.facturation.verifierParCode(code);
   }
 
   @Public()

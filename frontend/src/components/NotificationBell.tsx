@@ -43,6 +43,12 @@ function typeLabel(type: string) {
       return 'Approuvé';
     case 'UNLOCK_REFUSED':
       return 'Refusé';
+    case 'FACTURE_DELETE_REQUEST':
+      return 'Suppression devis/facture';
+    case 'FACTURE_DELETE_APPROVED':
+      return 'Suppression approuvée';
+    case 'FACTURE_DELETE_REFUSED':
+      return 'Suppression refusée';
     case 'CLIENT_INSCRIPTION':
     case 'PORTAIL_INSCRIPTION':
       return 'Portail client';
@@ -107,6 +113,29 @@ export function NotificationBell() {
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ['notifications'] });
       toast.success('Demande refusée');
+    },
+    onError: (e: { response?: { data?: { message?: string } } }) =>
+      toast.error(e.response?.data?.message ?? 'Refus impossible'),
+  });
+
+  const approveFactureDelete = useMutation({
+    mutationFn: async (demandeId: string) =>
+      (await api.patch(`/facturation/demandes-suppression/${demandeId}/approuver`)).data,
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['notifications'] });
+      void qc.invalidateQueries({ queryKey: ['factures'] });
+      toast.success('Document supprimé');
+    },
+    onError: (e: { response?: { data?: { message?: string } } }) =>
+      toast.error(e.response?.data?.message ?? 'Approbation impossible'),
+  });
+
+  const refuseFactureDelete = useMutation({
+    mutationFn: async (demandeId: string) =>
+      (await api.patch(`/facturation/demandes-suppression/${demandeId}/refuser`, {})).data,
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['notifications'] });
+      toast.success('Demande de suppression refusée');
     },
     onError: (e: { response?: { data?: { message?: string } } }) =>
       toast.error(e.response?.data?.message ?? 'Refus impossible'),
@@ -195,6 +224,8 @@ export function NotificationBell() {
             {data.map((n) => {
               const payload = n.payload ?? {};
               const isUnlock = n.type === 'UNLOCK_REQUEST' && !!payload.demandeId;
+              const isFactureDelete =
+                n.type === 'FACTURE_DELETE_REQUEST' && !!payload.demandeId;
               return (
                 <li
                   key={n.id}
@@ -268,7 +299,37 @@ export function NotificationBell() {
                     </div>
                   )}
 
-                  {payload.dossierId && !isUnlock && (
+                  {isFactureDelete && isAdmin && (
+                    <div className="mt-2 flex gap-2">
+                      <Button
+                        size="sm"
+                        className="flex-1"
+                        disabled={approveFactureDelete.isPending}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          approveFactureDelete.mutate(payload.demandeId!);
+                          markRead.mutate(n.id);
+                        }}
+                      >
+                        Approuver suppression
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        className="flex-1"
+                        disabled={refuseFactureDelete.isPending}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          refuseFactureDelete.mutate(payload.demandeId!);
+                          markRead.mutate(n.id);
+                        }}
+                      >
+                        Refuser
+                      </Button>
+                    </div>
+                  )}
+
+                  {payload.dossierId && !isUnlock && !isFactureDelete && (
                     <Button
                       size="sm"
                       variant="secondary"

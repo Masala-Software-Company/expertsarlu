@@ -77,6 +77,12 @@ export type FormState = {
     employeurAdresse: string;
     employeurTelephone: string;
   };
+  accompagnateur: {
+    nom: string;
+    prenom: string;
+    lien: string;
+    telephone: string;
+  };
   confirmationExactitude: boolean;
   website: string;
 };
@@ -137,6 +143,12 @@ export const emptyForm = (): FormState => ({
     employeurAdresse: '',
     employeurTelephone: '',
   },
+  accompagnateur: {
+    nom: '',
+    prenom: '',
+    lien: '',
+    telephone: '',
+  },
   confirmationExactitude: false,
   website: '',
 });
@@ -166,6 +178,7 @@ export type StepId =
   | 'coordonnees'
   | 'voyage'
   | 'pro'
+  | 'accompagnateur'
   | 'institution'
   | 'photo'
   | 'verification'
@@ -181,6 +194,7 @@ export function stepsFor(categorie: Categorie | ''): { id: StepId; label: string
   if (categorie !== 'INSTITUTION') {
     base.push({ id: 'pro', label: 'Profession' });
   }
+  base.push({ id: 'accompagnateur', label: 'Accompagnateur' });
   if (categorie === 'INSTITUTION') {
     base.push({ id: 'institution', label: 'Institution' });
   }

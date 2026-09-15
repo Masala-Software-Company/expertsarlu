@@ -34,6 +34,7 @@ export class PartenairesService {
     adresse?: string;
     fax?: string;
     notes?: string;
+    logoChemin?: string;
   }) {
     const nomNormalise = normalizeInstitutionName(data.nom);
     const exists = await this.prisma.partenaire.findUnique({ where: { nomNormalise } });
@@ -55,6 +56,7 @@ export class PartenairesService {
         adresse: data.adresse?.trim() || null,
         fax: data.fax?.trim() || null,
         notes: data.notes?.trim() || null,
+        logoChemin: data.logoChemin || null,
         actif: true,
         creeLe: now,
         majLe: now,

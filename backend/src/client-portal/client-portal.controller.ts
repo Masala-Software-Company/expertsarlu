@@ -3,8 +3,10 @@ import {
   Body,
   Controller,
   Get,
+  NotFoundException,
   Param,
   Post,
+  Res,
   UploadedFiles,
   UseInterceptors,
 } from '@nestjs/common';
@@ -17,10 +19,12 @@ import {
   IsString,
   MinLength,
 } from 'class-validator';
+import type { Response } from 'express';
 import { Priorite, TypeClient } from '@prisma/client';
 import { Public } from '../auth/decorators';
 import { ClientPortalService } from './client-portal.service';
 import { DossiersService } from '../dossiers/dossiers.service';
+import { StorageService } from '../storage/storage.service';
 
 class ClientInscriptionDto {
   @ApiProperty()
@@ -95,12 +99,31 @@ export class ClientPortalController {
   constructor(
     private portal: ClientPortalService,
     private dossiers: DossiersService,
+    private storage: StorageService,
   ) {}
 
   @Public()
   @Get('suivi/:token')
   suivi(@Param('token') token: string) {
     return this.dossiers.getBySuiviToken(token);
+  }
+
+  @Public()
+  @Get('suivi/:token/photo')
+  async suiviPhoto(@Param('token') token: string, @Res() res: Response) {
+    const ref = await this.dossiers.getSuiviPhoto(token);
+    if (!ref) throw new NotFoundException('Photo introuvable');
+    const opened = await this.storage.open(ref);
+    if (!opened) throw new NotFoundException('Photo introuvable');
+    const lower = ref.toLowerCase();
+    const mime = lower.endsWith('.png')
+      ? 'image/png'
+      : lower.endsWith('.webp')
+        ? 'image/webp'
+        : 'image/jpeg';
+    res.setHeader('Content-Type', mime);
+    res.setHeader('Cache-Control', 'public, max-age=300');
+    opened.stream.pipe(res);
   }
 
   @Public()

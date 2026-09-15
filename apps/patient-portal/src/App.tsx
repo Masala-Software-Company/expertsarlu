@@ -442,8 +442,13 @@ export default function App() {
                 <Field label="Adresse électronique" required error={errors['coordonnees.email']}>
                   <input type="email" className="field" value={form.coordonnees.email} onChange={(e) => setForm({ ...form, coordonnees: { ...form.coordonnees, email: e.target.value } })} />
                 </Field>
-                <Field label="Numéro de téléphone" required error={errors['coordonnees.telephone']}>
-                  <input className="field" value={form.coordonnees.telephone} onChange={(e) => setForm({ ...form, coordonnees: { ...form.coordonnees, telephone: e.target.value } })} />
+                <Field label="Numéro WhatsApp" required error={errors['coordonnees.telephone']}>
+                  <input
+                    className="field"
+                    placeholder="Ex. +243 800 000 000"
+                    value={form.coordonnees.telephone}
+                    onChange={(e) => setForm({ ...form, coordonnees: { ...form.coordonnees, telephone: e.target.value } })}
+                  />
                 </Field>
               </div>
               <div className="rounded-2xl border border-black/10 p-4">
@@ -572,6 +577,60 @@ export default function App() {
             </section>
           )}
 
+          {step === 'accompagnateur' && (
+            <section className="space-y-4">
+              <h2 className="text-2xl font-extrabold tracking-tight">Accompagnateur</h2>
+              <p className="text-sm text-ink/60">
+                Optionnel — renseignez uniquement si une personne voyage avec le patient.
+              </p>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <Field label="Nom">
+                  <input
+                    className="field"
+                    value={form.accompagnateur.nom}
+                    onChange={(e) =>
+                      setForm({ ...form, accompagnateur: { ...form.accompagnateur, nom: e.target.value } })
+                    }
+                  />
+                </Field>
+                <Field label="Prénom">
+                  <input
+                    className="field"
+                    value={form.accompagnateur.prenom}
+                    onChange={(e) =>
+                      setForm({
+                        ...form,
+                        accompagnateur: { ...form.accompagnateur, prenom: e.target.value },
+                      })
+                    }
+                  />
+                </Field>
+                <Field label="Lien avec le patient">
+                  <input
+                    className="field"
+                    placeholder="Époux, parent, ami…"
+                    value={form.accompagnateur.lien}
+                    onChange={(e) =>
+                      setForm({ ...form, accompagnateur: { ...form.accompagnateur, lien: e.target.value } })
+                    }
+                  />
+                </Field>
+                <Field label="Téléphone">
+                  <input
+                    className="field"
+                    value={form.accompagnateur.telephone}
+                    onChange={(e) =>
+                      setForm({
+                        ...form,
+                        accompagnateur: { ...form.accompagnateur, telephone: e.target.value },
+                      })
+                    }
+                  />
+                </Field>
+              </div>
+            </section>
+          )}
+
           {step === 'institution' && (
             <section className="space-y-4">
               <h2 className="text-2xl font-extrabold tracking-tight">Institution partenaire</h2>
@@ -666,7 +725,7 @@ export default function App() {
               <SummaryBlock title="Coordonnées" onEdit={() => goToStep('coordonnees')}>
                 {form.coordonnees.adresse}
                 <br />
-                {form.coordonnees.email} · {form.coordonnees.telephone}
+                {form.coordonnees.email} · WhatsApp {form.coordonnees.telephone}
               </SummaryBlock>
               <SummaryBlock title="Document de voyage" onEdit={() => goToStep('voyage')}>
                 {form.documentVoyage.numero} ({form.documentVoyage.type})

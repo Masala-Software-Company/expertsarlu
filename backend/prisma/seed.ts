@@ -60,19 +60,19 @@ async function seedAdmin() {
 
 async function seedTarifs() {
   const tarifs = [
-    { cle: 'accompagnateur', libelle: 'Accompagnateur', montant: 350, unite: 'personne' },
-    { cle: 'navette_aeroport', libelle: 'Navette aéroport', montant: 70, unite: 'trajet' },
-    { cle: 'ambulance', libelle: 'Ambulance', montant: 150, unite: 'trajet' },
-    { cle: 'assurance_j_le_30', libelle: 'Assurance / jour (J≤30)', montant: 7, unite: 'jour' },
-    { cle: 'assurance_j_ge_31', libelle: 'Assurance / jour (J≥31)', montant: 6.5, unite: 'jour' },
-    { cle: 'patient_principal', libelle: 'Patient principal', montant: 0, unite: 'personne' },
+    { cle: 'accompagnateur', libelle: 'Accompagnateur', reference: 'ACC-01', montant: 350, unite: 'personne' },
+    { cle: 'navette_aeroport', libelle: 'Navette aéroport', reference: 'NAV-01', montant: 70, unite: 'trajet' },
+    { cle: 'ambulance', libelle: 'Ambulance', reference: 'AMB-01', montant: 150, unite: 'trajet' },
+    { cle: 'assurance_j_le_30', libelle: 'Assurance / jour (≤ 30 jours)', reference: 'ASS-J30', montant: 7, unite: 'jour' },
+    { cle: 'assurance_j_ge_31', libelle: 'Assurance / jour (≥ 31 jours)', reference: 'ASS-J31', montant: 6.5, unite: 'jour' },
+    { cle: 'patient_principal', libelle: 'Patient principal', reference: 'PAT-01', montant: 0, unite: 'personne' },
   ];
 
   for (const t of tarifs) {
     await prisma.tarifBase.upsert({
       where: { cle: t.cle },
       create: t,
-      update: { libelle: t.libelle, montant: t.montant, unite: t.unite },
+      update: { libelle: t.libelle, montant: t.montant, unite: t.unite, reference: t.reference },
     });
   }
   console.log(`Tarifs: ${tarifs.length}`);

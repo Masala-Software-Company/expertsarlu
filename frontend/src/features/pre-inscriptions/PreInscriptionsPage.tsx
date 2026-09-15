@@ -2,10 +2,16 @@ import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
+import { Mail, MessageCircle } from 'lucide-react';
 import { api } from '@/lib/api';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { useAuthStore } from '@/features/auth/auth-store';
+import {
+  buildPatientOutreachMessage,
+  mailtoPatientUrl,
+  whatsappChatUrl,
+} from '@/lib/patient-contact';
 
 type PreInscription = {
   id: string;
@@ -177,7 +183,7 @@ export function PreInscriptionsPage() {
               <tr>
                 <th className="px-4 py-3">Patient</th>
                 <th className="px-4 py-3">Catégorie</th>
-                <th className="px-4 py-3">Institution</th>
+                <th className="px-4 py-3">Type</th>
                 <th className="px-4 py-3">Date</th>
                 <th className="px-4 py-3">Statut</th>
               </tr>
@@ -272,7 +278,50 @@ export function PreInscriptionsPage() {
               )}
 
               <DetailBlock title="Coordonnées">
-                {detail.email} · {detail.telephone}
+                <div className="space-y-2">
+                  <p>
+                    {detail.email ?? '—'} · WhatsApp {detail.telephone ?? '—'}
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {(() => {
+                      const msg = buildPatientOutreachMessage({
+                        prenom: detail.prenom,
+                        nom: detail.nom,
+                        numeroDossier: detail.dossier?.numero ?? detail.reference,
+                        statut: detail.statut,
+                      });
+                      const wa = whatsappChatUrl(detail.telephone, msg);
+                      const mail = mailtoPatientUrl(detail.email, {
+                        prenom: detail.prenom,
+                        nom: detail.nom,
+                        numeroDossier: detail.dossier?.numero ?? detail.reference,
+                        statut: detail.statut,
+                      });
+                      return (
+                        <>
+                          {wa ? (
+                            <a
+                              href={wa}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="inline-flex items-center gap-1.5 rounded-lg bg-[#25D366] px-3 py-1.5 text-xs font-semibold text-white"
+                            >
+                              <MessageCircle className="h-3.5 w-3.5" /> WhatsApp
+                            </a>
+                          ) : null}
+                          {mail ? (
+                            <a
+                              href={mail}
+                              className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--border)] px-3 py-1.5 text-xs font-semibold text-brand"
+                            >
+                              <Mail className="h-3.5 w-3.5" /> E-mail
+                            </a>
+                          ) : null}
+                        </>
+                      );
+                    })()}
+                  </div>
+                </div>
               </DetailBlock>
               <DetailBlock title="Passeport">{detail.numeroPasseport ?? '—'}</DetailBlock>
               {detail.partenaire && (

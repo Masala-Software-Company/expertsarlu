@@ -649,11 +649,22 @@ export class DossiersService {
         statut: true,
         destination: true,
         pathologie: true,
+        priorite: true,
         postRetourStatut: true,
         postRetourNotes: true,
         postRetourLe: true,
         patient: {
-          select: { prenom: true, nom: true },
+          select: {
+            prenom: true,
+            nom: true,
+            nationalite: true,
+            telephone: true,
+            email: true,
+            photoProfil: true,
+          },
+        },
+        accompagnateurs: {
+          select: { prenom: true, nom: true, lien: true },
         },
         tachesLogistique: {
           select: { titre: true, type: true, statut: true },
@@ -667,7 +678,49 @@ export class DossiersService {
       },
     });
     if (!dossier) throw new NotFoundException('Lien de suivi invalide');
-    return dossier;
+    return {
+      ...dossier,
+      patient: dossier.patient
+        ? {
+            prenom: dossier.patient.prenom,
+            nom: dossier.patient.nom,
+            nationalite: dossier.patient.nationalite,
+            telephone: dossier.patient.telephone,
+            email: dossier.patient.email,
+            hasPhoto: Boolean(dossier.patient.photoProfil),
+          }
+        : null,
+    };
+  }
+
+  async getSuiviPhoto(token: string) {
+    const dossier = await this.prisma.dossier.findFirst({
+      where: { suiviToken: token, statut: { not: 'ARCHIVE_SUPPRIME' } },
+      select: { patient: { select: { photoProfil: true } } },
+    });
+    if (!dossier?.patient?.photoProfil) return null;
+    return dossier.patient.photoProfil;
+  }
+
+  async buildAssistanceCardData(id: string, user: AuthUser) {
+    const dossier = await this.findOne(id, user);
+    if (!dossier) throw new NotFoundException();
+    return {
+      numero: dossier.numero as string,
+      patientNom: dossier.patient
+        ? `${dossier.patient.prenom} ${dossier.patient.nom}`
+        : 'Patient',
+      destination: dossier.destination as string | undefined,
+      pathologie: dossier.pathologie as string | undefined,
+      statut: (dossier.statut as string) || 'EN_COURS',
+      nationalite: dossier.patient?.nationalite as string | undefined,
+      telephone: dossier.patient?.telephone as string | undefined,
+      email: dossier.patient?.email as string | undefined,
+      priorite: dossier.priorite as string | undefined,
+      accompagnateurs: ((dossier.accompagnateurs ?? []) as { prenom: string; nom: string }[]).map(
+        (a) => `${a.prenom} ${a.nom}`,
+      ),
+    };
   }
 
   async updatePostRetour(

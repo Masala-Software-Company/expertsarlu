@@ -1,10 +1,22 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useParams } from 'react-router-dom';
 import { toast } from 'sonner';
-import { ArrowLeft, Lock, Trash2, Link2, Unlock, Copy, ExternalLink } from 'lucide-react';
+import { ArrowLeft, Lock, Trash2, Unlock, Copy, ExternalLink, Mail, Share2, Printer } from 'lucide-react';
 import { api } from '@/lib/api';
 import { STATUT_LABELS, formatMoney, cn } from '@/lib/utils';
+import {
+  buildPatientOutreachMessage,
+  mailtoPatientUrl,
+  whatsappChatUrl,
+} from '@/lib/patient-contact';
+import { WhatsAppIcon } from '@/components/WhatsAppIcon';
+import {
+  labelOf,
+  TACHE_TYPE_LABELS,
+  RDV_TYPE_LABELS,
+  POST_RETOUR_LABELS,
+} from '@/lib/status-labels';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Can, usePermission } from '@/hooks/usePermission';
@@ -33,6 +45,13 @@ export function DossierDetailPage() {
   const [postStatut, setPostStatut] = useState('EN_ATTENTE');
   const [postNotes, setPostNotes] = useState('');
   const [suiviUrl, setSuiviUrl] = useState<string | null>(null);
+  const [missionOpen, setMissionOpen] = useState(false);
+  const [mission, setMission] = useState({
+    type: 'NAVETTE',
+    titre: '',
+    notes: '',
+    echeance: '',
+  });
   const qc = useQueryClient();
   const canFinance = usePermission('cotation', 'read');
   const canFactu = usePermission('facturation', 'read');
@@ -51,6 +70,11 @@ export function DossierDetailPage() {
     queryFn: async () => (await api.get(`/dossiers/${id}`)).data,
     enabled: !!id,
   });
+
+  useEffect(() => {
+    if (dossier?.postRetourStatut) setPostStatut(dossier.postRetourStatut);
+    if (dossier?.postRetourNotes) setPostNotes(dossier.postRetourNotes);
+  }, [dossier?.postRetourStatut, dossier?.postRetourNotes]);
 
   const { data: cotation } = useQuery({
     queryKey: ['cotation', id],
@@ -156,18 +180,47 @@ export function DossierDetailPage() {
   });
 
   const createTache = useMutation({
-    mutationFn: async () =>
-      (
-        await api.post(`/logistique/taches/${id}`, {
-          type: 'NAVETTE',
-          titre: 'Navette aéroport',
-        })
-      ).data,
+    mutationFn: async (payload: {
+      type: string;
+      titre: string;
+      notes?: string;
+      echeance?: string;
+    }) => (await api.post(`/logistique/taches/${id}`, payload)).data,
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ['dossier', id] });
-      toast.success('Tâche créée');
+      setMissionOpen(false);
+      setMission({ type: 'NAVETTE', titre: '', notes: '', echeance: '' });
+      toast.success('Mission ajoutée au protocole');
     },
+    onError: () => toast.error('Création de mission impossible'),
   });
+
+  const patchTacheStatut = useMutation({
+    mutationFn: async ({ tacheId, statut }: { tacheId: string; statut: string }) =>
+      (await api.patch(`/logistique/taches/${tacheId}/statut`, { statut })).data,
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['dossier', id] });
+      toast.success('Statut mis à jour');
+    },
+    onError: () => toast.error('Mise à jour impossible'),
+  });
+
+  const downloadCarte = async () => {
+    try {
+      const { data } = await api.get(`/dossiers/${id}/carte-assistance`, {
+        responseType: 'blob',
+      });
+      const url = URL.createObjectURL(data);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `carte-assistance-${dossier?.numero ?? id}.pdf`;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast.success('Carte d’assistance téléchargée');
+    } catch {
+      toast.error('Impression carte impossible');
+    }
+  };
 
   const tabs = useMemo(() => {
     const all: { id: Tab; label: string; hide?: boolean }[] = [
@@ -188,6 +241,20 @@ export function DossierDetailPage() {
 
   const locked =
     dossier.verrouille || ['VALIDE', 'FACTURE_PAYE', 'VERROUILLE'].includes(dossier.statut);
+
+  const outreachMessage = buildPatientOutreachMessage({
+    prenom: dossier.patient?.prenom,
+    nom: dossier.patient?.nom,
+    numeroDossier: dossier.numero,
+    statut: dossier.statut,
+  });
+  const waUrl = whatsappChatUrl(dossier.patient?.telephone, outreachMessage);
+  const mailUrl = mailtoPatientUrl(dossier.patient?.email, {
+    prenom: dossier.patient?.prenom,
+    nom: dossier.patient?.nom,
+    numeroDossier: dossier.numero,
+    statut: dossier.statut,
+  });
 
   return (
     <div className="space-y-5">
@@ -242,25 +309,63 @@ export function DossierDetailPage() {
             </label>
           )}
         </div>
-        <div className="flex flex-wrap gap-2">
-          <Button
-            variant="secondary"
-            size="sm"
-            disabled={suiviLink.isPending}
-            onClick={() => suiviLink.mutate()}
-          >
-            <Link2 className="h-4 w-4" /> Lien suivi
-          </Button>
-          <Can module="dossiers" action="validate">
-            <Button variant="secondary" disabled={locked} onClick={() => validate.mutate()}>
-              Valider
+        <div className="flex flex-col items-stretch gap-2 sm:items-end">
+          <div className="flex flex-wrap justify-end gap-2">
+            {waUrl ? (
+              <a
+                href={waUrl}
+                target="_blank"
+                rel="noreferrer"
+                title="Ouvrir WhatsApp avec message prérempli (dossier + statut)"
+                className="inline-flex h-10 items-center gap-2 rounded-full bg-[#25D366] px-4 text-sm font-semibold text-white shadow-sm transition-ui hover:brightness-110"
+              >
+                <WhatsAppIcon className="h-4 w-4" /> WhatsApp
+              </a>
+            ) : null}
+            {mailUrl ? (
+              <a
+                href={mailUrl}
+                title="Écrire un e-mail prérempli au patient"
+                className="inline-flex h-10 items-center gap-2 rounded-full border border-[var(--border)] bg-surface px-4 text-sm font-semibold transition-ui hover:border-brand/40 hover:text-brand"
+              >
+                <Mail className="h-4 w-4" /> E-mail
+              </a>
+            ) : null}
+            <Button
+              variant="secondary"
+              size="sm"
+              className="rounded-full"
+              disabled={suiviLink.isPending}
+              title="Génère un lien public pour que le patient suive l’avancement de son dossier"
+              onClick={() => suiviLink.mutate()}
+            >
+              <Share2 className="h-4 w-4" /> Partager le suivi
             </Button>
-          </Can>
-          <Can module="dossiers" action="delete">
-            <Button variant="danger" onClick={() => setConfirmDelete(true)}>
-              <Trash2 className="h-4 w-4" /> Supprimer
+            <Button
+              variant="secondary"
+              size="sm"
+              className="rounded-full"
+              title="Télécharger la carte d’assistance médicale PDF"
+              onClick={() => void downloadCarte()}
+            >
+              <Printer className="h-4 w-4" /> Carte PDF
             </Button>
-          </Can>
+          </div>          <div className="flex flex-wrap justify-end gap-2">
+            <Can module="dossiers" action="validate">
+              <Button variant="secondary" size="sm" className="rounded-full" disabled={locked} onClick={() => validate.mutate()}>
+                Valider le dossier
+              </Button>
+            </Can>
+            <Can module="dossiers" action="delete">
+              <Button variant="danger" size="sm" className="rounded-full" onClick={() => setConfirmDelete(true)}>
+                <Trash2 className="h-4 w-4" /> Supprimer
+              </Button>
+            </Can>
+          </div>
+          <p className="max-w-sm text-right text-[11px] text-muted">
+            <strong>Partager le suivi</strong> : envoie au patient un lien sécurisé pour consulter
+            l’état de son dossier (sans accès à l’espace équipe).
+          </p>
         </div>
       </div>
 
@@ -329,8 +434,43 @@ export function DossierDetailPage() {
                   : '—'
               }
             />
-            <Row label="Téléphone" value={dossier.patient?.telephone} />
-            <Row label="Email" value={dossier.patient?.email} />
+            <Row
+              label="WhatsApp"
+              value={
+                dossier.patient?.telephone ? (
+                  waUrl ? (
+                    <a
+                      href={waUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="font-semibold text-[#25D366] hover:underline"
+                    >
+                      {dossier.patient.telephone}
+                    </a>
+                  ) : (
+                    dossier.patient.telephone
+                  )
+                ) : (
+                  '—'
+                )
+              }
+            />
+            <Row
+              label="E-mail"
+              value={
+                dossier.patient?.email ? (
+                  mailUrl ? (
+                    <a href={mailUrl} className="font-semibold text-brand hover:underline">
+                      {dossier.patient.email}
+                    </a>
+                  ) : (
+                    dossier.patient.email
+                  )
+                ) : (
+                  '—'
+                )
+              }
+            />
             <Row label="Nationalité" value={dossier.patient?.nationalite} />
           </InfoCard>
           <InfoCard title="Accompagnateurs">
@@ -348,22 +488,46 @@ export function DossierDetailPage() {
 
       {tab === 'cotation' && canFinance && (
         <div className="space-y-4">
-          <div className="flex flex-wrap items-end gap-3 rounded-2xl bg-surface p-4 shadow-soft border border-[var(--border)]">
+          <div className="grid gap-3 sm:grid-cols-3">
+            <div className="rounded-2xl border border-[var(--border)] bg-surface p-4 shadow-soft">
+              <div className="text-xs font-bold uppercase tracking-wide text-muted">Total cotation</div>
+              <div className="mt-1 text-2xl font-extrabold text-brand">
+                {formatMoney(Number(cotation?.total ?? 0))}
+              </div>
+            </div>
+            <div className="rounded-2xl border border-[var(--border)] bg-surface p-4 shadow-soft">
+              <div className="text-xs font-bold uppercase tracking-wide text-muted">Lignes</div>
+              <div className="mt-1 text-2xl font-extrabold">
+                {(cotation?.lignes ?? []).length}
+              </div>
+            </div>
+            <div className="rounded-2xl border border-[var(--border)] bg-surface p-4 shadow-soft">
+              <div className="text-xs font-bold uppercase tracking-wide text-muted">Assurance</div>
+              <div className="mt-1 text-2xl font-extrabold">{jours} j</div>
+              <p className="text-[11px] text-muted">J≤30 → 7$/j · J≥31 → 6,50$/j</p>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-end gap-3 rounded-2xl border border-[var(--border)] bg-surface p-4 shadow-soft">
             <div>
-              <label className="text-sm font-medium">Jours d’assurance</label>
+              <label className="text-sm font-medium">Recalculer l’assurance (jours)</label>
               <Input
                 type="number"
                 min={1}
                 value={jours}
                 onChange={(e) => setJours(Number(e.target.value))}
                 className="mt-1 w-32"
+                disabled={locked}
               />
-              <p className="mt-1 text-xs text-muted">J≤30 → 7$/j · J≥31 → 6,50$/j</p>
             </div>
-            <Button onClick={() => recalcul.mutate()} disabled={locked}>
+            <Button onClick={() => recalcul.mutate()} disabled={locked || recalcul.isPending}>
               Recalculer
             </Button>
-            <Button variant="secondary" onClick={() => addNavette.mutate()} disabled={locked}>
+            <Button
+              variant="secondary"
+              onClick={() => addNavette.mutate()}
+              disabled={locked || addNavette.isPending}
+            >
               + Navette 70$
             </Button>
           </div>
@@ -381,19 +545,32 @@ export function DossierDetailPage() {
                 {(cotation?.lignes ?? []).map(
                   (l: { id: string; description: string; type: string; montant: number }) => (
                     <tr key={l.id} className="border-t border-[var(--border)]">
-                      <td className="px-4 py-3">{l.description}</td>
-                      <td className="px-4 py-3 text-muted">{l.type}</td>
+                      <td className="px-4 py-3 font-medium">{l.description}</td>
+                      <td className="px-4 py-3">
+                        <span className="rounded-full bg-brand/10 px-2.5 py-0.5 text-xs font-semibold text-brand">
+                          {labelOf(TACHE_TYPE_LABELS, l.type) !== l.type
+                            ? labelOf(TACHE_TYPE_LABELS, l.type)
+                            : l.type}
+                        </span>
+                      </td>
                       <td className="px-4 py-3 text-right font-semibold">
                         {formatMoney(Number(l.montant))}
                       </td>
                     </tr>
                   ),
                 )}
+                {(cotation?.lignes ?? []).length === 0 && (
+                  <tr>
+                    <td colSpan={3} className="px-4 py-8 text-center text-muted">
+                      Aucune ligne — recalculez l’assurance ou ajoutez une navette.
+                    </td>
+                  </tr>
+                )}
               </tbody>
               <tfoot>
                 <tr className="border-t border-[var(--border)] bg-canvas">
                   <td className="px-4 py-3 font-bold" colSpan={2}>
-                    Total
+                    Total devis / facturation
                   </td>
                   <td className="px-4 py-3 text-right text-lg font-extrabold text-brand">
                     {formatMoney(Number(cotation?.total ?? 0))}
@@ -406,83 +583,309 @@ export function DossierDetailPage() {
       )}
 
       {tab === 'facturation' && canFactu && (
-        <FacturationPanel dossierId={id} locked={locked} />
+        <FacturationPanel
+          dossierId={id}
+          locked={locked}
+          dossierNumero={dossier.numero}
+          patientName={
+            dossier.patient
+              ? `${dossier.patient.prenom} ${dossier.patient.nom}`
+              : undefined
+          }
+        />
       )}
 
       {tab === 'documents' && <GedDocumentsPanel dossierId={id} locked={locked} />}
 
       {tab === 'logistique' && (
-        <div className="space-y-3 rounded-2xl border border-[var(--border)] bg-surface p-6 shadow-soft">
-          <div className="flex items-center justify-between gap-2">
-            <p className="text-sm text-muted">Tâches liées à ce dossier</p>
+        <div className="space-y-5">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h3 className="font-bold">Protocole logistique</h3>
+              <p className="text-sm text-muted">
+                Tableau de missions (visa, navette, vol…) — avancez le statut comme un board
+                opérationnel.
+              </p>
+            </div>
             <Can module="logistique" action="create">
-              <Button size="sm" disabled={locked} onClick={() => createTache.mutate()}>
-                + Navette
+              <Button size="sm" disabled={locked} onClick={() => setMissionOpen(true)}>
+                + Nouvelle mission
               </Button>
             </Can>
           </div>
-          {(dossier.tachesLogistique ?? []).length === 0 ? (
-            <p className="text-sm text-muted">Aucune tâche — créez-en ici ou depuis Protocole.</p>
-          ) : (
-            <ul className="space-y-2">
-              {dossier.tachesLogistique.map(
-                (t: { id: string; titre: string; type: string; statut: string }) => (
-                  <li
-                    key={t.id}
-                    className="flex justify-between rounded-xl bg-canvas px-3 py-2 text-sm"
-                  >
-                    <span>
-                      <strong>{t.titre}</strong> · {t.type}
-                    </span>
-                    <span className="text-muted">{t.statut}</span>
-                  </li>
-                ),
-              )}
-            </ul>
+
+          {(() => {
+            const tasks = (dossier.tachesLogistique ?? []) as {
+              id: string;
+              titre: string;
+              type: string;
+              statut: string;
+              notes?: string;
+            }[];
+            const columns = [
+              { key: 'A_FAIRE', label: 'À planifier' },
+              { key: 'EN_COURS', label: 'En cours' },
+              { key: 'TERMINE', label: 'Terminé' },
+              { key: 'BLOQUE', label: 'Bloqué' },
+            ] as const;
+            if (tasks.length === 0) {
+              return (
+                <div className="rounded-2xl border border-dashed border-[var(--border)] bg-surface p-10 text-center text-sm text-muted">
+                  Aucune mission. Créez visa, navette ou vol pour structurer le parcours patient.
+                </div>
+              );
+            }
+            return (
+              <div className="grid gap-3 lg:grid-cols-4">
+                {columns.map((col) => {
+                  const items = tasks.filter((t) => t.statut === col.key);
+                  return (
+                    <div
+                      key={col.key}
+                      className="rounded-2xl border border-[var(--border)] bg-canvas/60 p-3"
+                    >
+                      <div className="mb-3 flex items-center justify-between px-1">
+                        <span className="text-xs font-bold uppercase tracking-wide text-muted">
+                          {col.label}
+                        </span>
+                        <span className="rounded-full bg-surface px-2 py-0.5 text-xs font-semibold">
+                          {items.length}
+                        </span>
+                      </div>
+                      <ul className="space-y-2">
+                        {items.map((t) => (
+                          <li
+                            key={t.id}
+                            className="rounded-xl border border-[var(--border)] bg-surface p-3 shadow-soft"
+                          >
+                            <div className="text-[10px] font-bold uppercase tracking-wide text-brand">
+                              {labelOf(TACHE_TYPE_LABELS, t.type)}
+                            </div>
+                            <div className="mt-1 text-sm font-bold">{t.titre}</div>
+                            {!locked && (
+                              <div className="mt-2 flex flex-wrap gap-1">
+                                {col.key !== 'A_FAIRE' && (
+                                  <button
+                                    type="button"
+                                    className="rounded-md bg-canvas px-2 py-1 text-[10px] font-semibold"
+                                    onClick={() =>
+                                      patchTacheStatut.mutate({
+                                        tacheId: t.id,
+                                        statut: 'A_FAIRE',
+                                      })
+                                    }
+                                  >
+                                    À faire
+                                  </button>
+                                )}
+                                {col.key !== 'EN_COURS' && (
+                                  <button
+                                    type="button"
+                                    className="rounded-md bg-brand/10 px-2 py-1 text-[10px] font-semibold text-brand"
+                                    onClick={() =>
+                                      patchTacheStatut.mutate({
+                                        tacheId: t.id,
+                                        statut: 'EN_COURS',
+                                      })
+                                    }
+                                  >
+                                    En cours
+                                  </button>
+                                )}
+                                {col.key !== 'TERMINE' && (
+                                  <button
+                                    type="button"
+                                    className="rounded-md bg-emerald-500/15 px-2 py-1 text-[10px] font-semibold text-emerald-700"
+                                    onClick={() =>
+                                      patchTacheStatut.mutate({
+                                        tacheId: t.id,
+                                        statut: 'TERMINE',
+                                      })
+                                    }
+                                  >
+                                    Terminer
+                                  </button>
+                                )}
+                                {col.key !== 'BLOQUE' && (
+                                  <button
+                                    type="button"
+                                    className="rounded-md bg-amber-500/15 px-2 py-1 text-[10px] font-semibold text-amber-800"
+                                    onClick={() =>
+                                      patchTacheStatut.mutate({
+                                        tacheId: t.id,
+                                        statut: 'BLOQUE',
+                                      })
+                                    }
+                                  >
+                                    Bloquer
+                                  </button>
+                                )}
+                              </div>
+                            )}
+                          </li>
+                        ))}
+                        {items.length === 0 && (
+                          <li className="px-1 py-6 text-center text-xs text-muted">Vide</li>
+                        )}
+                      </ul>
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          })()}
+
+          {(dossier.rendezVous ?? []).length > 0 && (
+            <div>
+              <h4 className="mb-2 text-sm font-bold">Rendez-vous liés</h4>
+              <ul className="grid gap-2 sm:grid-cols-2">
+                {(dossier.rendezVous as { id: string; type: string; dateHeure: string; lieu?: string; statut: string }[]).map(
+                  (r) => (
+                    <li
+                      key={r.id}
+                      className="rounded-xl border border-[var(--border)] bg-surface px-3 py-2 text-sm"
+                    >
+                      <div className="font-semibold">
+                        {labelOf(RDV_TYPE_LABELS, r.type)} ·{' '}
+                        {new Date(r.dateHeure).toLocaleString('fr-FR')}
+                      </div>
+                      <div className="text-muted">
+                        {r.lieu ?? 'Lieu à confirmer'} · {r.statut}
+                      </div>
+                    </li>
+                  ),
+                )}
+              </ul>
+            </div>
           )}
         </div>
       )}
 
       {tab === 'communications' && (
-        <CommunicationsPanel dossierId={id} locked={locked} />
+        <CommunicationsPanel
+          dossierId={id}
+          locked={locked}
+          patient={dossier.patient}
+          numeroDossier={dossier.numero}
+          statut={dossier.statut}
+        />
       )}
 
       {tab === 'postretour' && (
-        <div className="max-w-lg space-y-3 rounded-2xl border border-[var(--border)] bg-surface p-6 shadow-soft">
-          <h3 className="font-bold">Suivi post-retour</h3>
-          <p className="text-sm text-muted">
-            Le patient est-il rentré ? Besoin d’un accompagnement après le vol retour ?
-          </p>
-          {dossier.postRetourStatut && (
-            <p className="text-sm">
-              Actuel : <strong>{dossier.postRetourStatut}</strong>
-              {dossier.postRetourLe
-                ? ` · ${new Date(dossier.postRetourLe).toLocaleString('fr-FR')}`
-                : ''}
+        <div className="space-y-5">
+          <div>
+            <h3 className="font-bold">Suivi post-retour</h3>
+            <p className="text-sm text-muted">
+              Pipeline d’accompagnement après le retour du patient (assistance médicale).
             </p>
-          )}
-          <select
-            className="w-full rounded-xl border border-[var(--border)] bg-canvas px-3 py-2 text-sm"
-            value={postStatut}
-            disabled={locked}
-            onChange={(e) => setPostStatut(e.target.value)}
-          >
-            {['EN_ATTENTE', 'RENTRE', 'SUIVI', 'CLOS'].map((s) => (
-              <option key={s} value={s}>
-                {s}
-              </option>
-            ))}
-          </select>
-          <textarea
-            className="min-h-[80px] w-full rounded-xl border border-[var(--border)] bg-canvas px-3 py-2 text-sm"
-            placeholder="Notes"
-            value={postNotes || dossier.postRetourNotes || ''}
-            disabled={locked}
-            onChange={(e) => setPostNotes(e.target.value)}
-          />
-          <Button disabled={locked || savePostRetour.isPending} onClick={() => savePostRetour.mutate()}>
-            Enregistrer
-          </Button>
+          </div>
+
+          <div className="grid gap-2 sm:grid-cols-4">
+            {(['EN_ATTENTE', 'RENTRE', 'SUIVI', 'CLOS'] as const).map((s, idx) => {
+              const active = (postStatut || dossier.postRetourStatut || 'EN_ATTENTE') === s;
+              return (
+                <button
+                  key={s}
+                  type="button"
+                  disabled={locked}
+                  onClick={() => setPostStatut(s)}
+                  className={cn(
+                    'rounded-2xl border px-3 py-4 text-left transition-ui',
+                    active
+                      ? 'border-brand bg-brand text-white shadow-soft'
+                      : 'border-[var(--border)] bg-surface hover:border-brand/40',
+                  )}
+                >
+                  <div className="text-[10px] font-bold uppercase tracking-wide opacity-70">
+                    Étape {idx + 1}
+                  </div>
+                  <div className="mt-1 text-sm font-bold">{POST_RETOUR_LABELS[s]}</div>
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="max-w-xl space-y-3 rounded-2xl border border-[var(--border)] bg-surface p-5 shadow-soft">
+            {dossier.postRetourLe && (
+              <p className="text-xs text-muted">
+                Dernière mise à jour :{' '}
+                {new Date(dossier.postRetourLe).toLocaleString('fr-FR')}
+                {dossier.postRetourStatut
+                  ? ` · ${POST_RETOUR_LABELS[dossier.postRetourStatut] ?? dossier.postRetourStatut}`
+                  : ''}
+              </p>
+            )}
+            <label className="block text-sm font-medium">Notes cliniques / opérationnelles</label>
+            <textarea
+              className="min-h-[120px] w-full rounded-xl border border-[var(--border)] bg-canvas px-3 py-2 text-sm"
+              placeholder="Ex. patient rentré le…, suivi téléphonique prévu, documents manquants…"
+              value={postNotes || dossier.postRetourNotes || ''}
+              disabled={locked}
+              onChange={(e) => setPostNotes(e.target.value)}
+            />
+            <Button
+              disabled={locked || savePostRetour.isPending}
+              onClick={() => savePostRetour.mutate()}
+            >
+              Enregistrer le post-retour
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {missionOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-md space-y-3 rounded-2xl bg-surface p-6 shadow-soft">
+            <h4 className="font-bold">Nouvelle mission logistique</h4>
+            <select
+              className="w-full rounded-xl border border-[var(--border)] bg-canvas px-3 py-2 text-sm"
+              value={mission.type}
+              onChange={(e) => setMission({ ...mission, type: e.target.value })}
+            >
+              {Object.entries(TACHE_TYPE_LABELS).map(([k, v]) => (
+                <option key={k} value={k}>
+                  {v}
+                </option>
+              ))}
+            </select>
+            <Input
+              placeholder="Titre (ex. Navette CDG T2 → hôpital)"
+              value={mission.titre}
+              onChange={(e) => setMission({ ...mission, titre: e.target.value })}
+            />
+            <Input
+              type="datetime-local"
+              value={mission.echeance}
+              onChange={(e) => setMission({ ...mission, echeance: e.target.value })}
+            />
+            <textarea
+              className="min-h-[80px] w-full rounded-xl border border-[var(--border)] bg-canvas px-3 py-2 text-sm"
+              placeholder="Notes (vol, contact chauffeur…)"
+              value={mission.notes}
+              onChange={(e) => setMission({ ...mission, notes: e.target.value })}
+            />
+            <div className="flex gap-2">
+              <Button variant="secondary" className="flex-1" onClick={() => setMissionOpen(false)}>
+                Annuler
+              </Button>
+              <Button
+                className="flex-1"
+                disabled={!mission.titre.trim() || createTache.isPending}
+                onClick={() =>
+                  createTache.mutate({
+                    type: mission.type,
+                    titre: mission.titre.trim(),
+                    notes: mission.notes || undefined,
+                    echeance: mission.echeance
+                      ? new Date(mission.echeance).toISOString()
+                      : undefined,
+                  })
+                }
+              >
+                Créer
+              </Button>
+            </div>
+          </div>
         </div>
       )}
 
@@ -556,11 +959,11 @@ function InfoCard({ title, children }: { title: string; children: React.ReactNod
   );
 }
 
-function Row({ label, value }: { label: string; value?: string | null }) {
+function Row({ label, value }: { label: string; value?: ReactNode }) {
   return (
     <div className="flex justify-between gap-4 text-sm">
       <span className="text-muted">{label}</span>
-      <span className="font-medium text-right">{value || '—'}</span>
+      <span className="text-right font-medium">{value ?? '—'}</span>
     </div>
   );
 }

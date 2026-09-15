@@ -48,6 +48,16 @@ class PartenaireDto {
   @IsOptional()
   @IsString()
   notes?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  adresse?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  logoChemin?: string;
 }
 
 @ApiTags('partenaires')

@@ -34,7 +34,7 @@ export function validateStep(step: string, form: FormState): FieldErrors {
       e['coordonnees.email'] = 'E-mail invalide';
     }
     if (!form.coordonnees.telephone.trim() || form.coordonnees.telephone.replace(/\D/g, '').length < 8) {
-      e['coordonnees.telephone'] = 'Numéro de téléphone invalide';
+      e['coordonnees.telephone'] = 'Numéro WhatsApp invalide';
     }
     if (form.residenceEtrangere.oui === null) {
       e['residenceEtrangere.oui'] = 'Répondez à cette question';

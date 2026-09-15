@@ -94,12 +94,17 @@ export function ClientPortalPage() {
               <Input required value={form.prenom} onChange={(e) => setForm({ ...form, prenom: e.target.value })} />
             </label>
             <label className="space-y-1 text-sm">
-              <span className="text-muted">E-mail</span>
-              <Input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
+              <span className="text-muted">E-mail *</span>
+              <Input required type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
             </label>
             <label className="space-y-1 text-sm">
-              <span className="text-muted">Téléphone / WhatsApp</span>
-              <Input value={form.telephone} onChange={(e) => setForm({ ...form, telephone: e.target.value })} />
+              <span className="text-muted">WhatsApp *</span>
+              <Input
+                required
+                placeholder="Ex. +243 800 000 000"
+                value={form.telephone}
+                onChange={(e) => setForm({ ...form, telephone: e.target.value })}
+              />
             </label>
             <label className="space-y-1 text-sm">
               <span className="text-muted">Nationalité</span>
