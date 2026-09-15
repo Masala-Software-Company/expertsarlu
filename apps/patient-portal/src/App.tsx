@@ -13,6 +13,7 @@ import {
 import { validateStep } from '@/lib/validate';
 import { cn } from '@/lib/utils';
 import logoLight from '@/assets/logo-light.png';
+import { SuiviPage } from '@/SuiviPage';
 
 function BrandCheck() {
   return (
@@ -81,6 +82,19 @@ function Progress({ steps, index }: { steps: { id: StepId; label: string }[]; in
 }
 
 export default function App() {
+  const suiviToken = (() => {
+    const m = window.location.pathname.match(/^\/suivi\/([^/]+)\/?$/);
+    return m?.[1] ? decodeURIComponent(m[1]) : null;
+  })();
+
+  if (suiviToken) {
+    return <SuiviPage token={suiviToken} />;
+  }
+
+  return <InscriptionApp />;
+}
+
+function InscriptionApp() {
   const [form, setForm] = useState<FormState>(emptyForm);
   const [stepIndex, setStepIndex] = useState(0);
   const [errors, setErrors] = useState<Record<string, string>>({});

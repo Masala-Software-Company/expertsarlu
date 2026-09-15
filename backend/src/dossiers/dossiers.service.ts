@@ -623,22 +623,35 @@ export class DossiersService {
     if (!dossier || dossier.statut === 'ARCHIVE_SUPPRIME') {
       throw new NotFoundException();
     }
-    if (dossier.suiviToken) {
-      return { token: dossier.suiviToken, url: `/suivi/${dossier.suiviToken}` };
+    const token = dossier.suiviToken ?? randomUUID();
+    if (!dossier.suiviToken) {
+      await this.prisma.dossier.update({
+        where: { id },
+        data: { suiviToken: token },
+      });
+      await this.audit.log({
+        userId: user.id,
+        action: 'SUIVI_TOKEN',
+        tableCible: 'dossiers',
+        recordId: id,
+        nouvelleValeur: { token },
+      });
     }
-    const token = randomUUID();
-    await this.prisma.dossier.update({
-      where: { id },
-      data: { suiviToken: token },
-    });
-    await this.audit.log({
-      userId: user.id,
-      action: 'SUIVI_TOKEN',
-      tableCible: 'dossiers',
-      recordId: id,
-      nouvelleValeur: { token },
-    });
-    return { token, url: `/suivi/${token}` };
+    return {
+      token,
+      path: `/suivi/${token}`,
+      url: this.buildSuiviPublicUrl(token),
+    };
+  }
+
+  /** Lien patient public — ex. https://patient.expert-evac.com/suivi/TOKEN */
+  private buildSuiviPublicUrl(token: string) {
+    const base = (
+      process.env.PUBLIC_SUIVI_BASE_URL ||
+      process.env.PUBLIC_PATIENT_PORTAL_URL ||
+      'https://patient.expert-evac.com'
+    ).replace(/\/$/, '');
+    return `${base}/suivi/${encodeURIComponent(token)}`;
   }
 
   async getBySuiviToken(token: string) {

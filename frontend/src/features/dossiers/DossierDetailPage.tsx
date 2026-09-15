@@ -151,12 +151,19 @@ export function DossierDetailPage() {
 
   const suiviLink = useMutation({
     mutationFn: async () =>
-      (await api.post(`/dossiers/${id}/suivi-token`)).data as { token: string; url: string },
+      (await api.post(`/dossiers/${id}/suivi-token`)).data as {
+        token: string;
+        url: string;
+        path?: string;
+      },
     onSuccess: (res) => {
-      const full = `${window.location.origin}/suivi/${res.token}`;
+      const full =
+        res.url?.startsWith('http')
+          ? res.url
+          : `${import.meta.env.VITE_PUBLIC_SUIVI_BASE_URL?.replace(/\/$/, '') || 'https://patient.expert-evac.com'}/suivi/${res.token}`;
       setSuiviUrl(full);
       void navigator.clipboard?.writeText(full).catch(() => undefined);
-      toast.success('Lien de suivi prêt');
+      toast.success('Lien de suivi patient prêt');
     },
     onError: (e: { response?: { data?: { message?: string } } }) =>
       toast.error(
@@ -363,8 +370,9 @@ export function DossierDetailPage() {
             </Can>
           </div>
           <p className="max-w-sm text-right text-[11px] text-muted">
-            <strong>Partager le suivi</strong> : envoie au patient un lien sécurisé pour consulter
-            l’état de son dossier (sans accès à l’espace équipe).
+            <strong>Partager le suivi</strong> : lien public{' '}
+            <span className="font-mono">patient.expert-evac.com/suivi/…</span> pour que le patient
+            consulte sa carte d’assistance (sans accès à l’espace équipe).
           </p>
         </div>
       </div>
