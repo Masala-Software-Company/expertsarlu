@@ -9,7 +9,6 @@ import { api } from '@/lib/api';
 import { useAuthStore } from './auth-store';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
-import { DesktopDownloads } from '@/components/DesktopDownloads';
 
 const schema = z.object({
   email: z.string().email('E-mail invalide'),
@@ -112,10 +111,7 @@ export function LoginPage() {
               alt="eXpert SARLU"
               className="h-16 w-auto max-w-[260px] object-contain drop-shadow-[0_12px_40px_rgba(20,78,185,0.45)] sm:h-20"
             />
-            <h1
-              className="mt-10 max-w-xl text-4xl font-extrabold leading-[1.08] tracking-tight sm:text-5xl lg:text-[3.4rem]"
-              style={{ fontFamily: 'Syne, Outfit, sans-serif' }}
-            >
+            <h1 className="mt-10 max-w-xl text-4xl font-extrabold leading-[1.08] tracking-tight sm:text-5xl lg:text-[3.4rem]">
               Coordination médicale internationale
             </h1>
             <p className="mt-5 max-w-lg text-base leading-relaxed text-white/70 sm:text-lg">
@@ -146,10 +142,7 @@ export function LoginPage() {
                 <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-[#93C5FD]">
                   Accès équipe
                 </p>
-                <h2
-                  className="mt-2 text-3xl font-extrabold tracking-tight"
-                  style={{ fontFamily: 'Syne, Outfit, sans-serif' }}
-                >
+                <h2 className="mt-2 text-3xl font-extrabold tracking-tight">
                   Connexion
                 </h2>
                 <p className="mt-1.5 text-sm text-white/55">
@@ -191,10 +184,6 @@ export function LoginPage() {
                 </Button>
               </div>
             </form>
-
-            <div className="mt-6">
-              <DesktopDownloads />
-            </div>
           </section>
         </div>
       </div>
