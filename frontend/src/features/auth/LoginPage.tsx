@@ -9,6 +9,7 @@ import { api } from '@/lib/api';
 import { useAuthStore } from './auth-store';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
+import { DesktopDownloads } from '@/components/DesktopDownloads';
 
 const schema = z.object({
   email: z.string().email('E-mail invalide'),
@@ -190,6 +191,10 @@ export function LoginPage() {
                 </Button>
               </div>
             </form>
+
+            <div className="mt-6">
+              <DesktopDownloads />
+            </div>
           </section>
         </div>
       </div>

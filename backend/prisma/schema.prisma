@@ -614,12 +614,14 @@ model InboxMessage {
 }
 
 model AppVersion {
-  id        String   @id @default(cuid())
-  version   String   @unique
-  changelog String?
-  driveUrl  String?  @map("drive_url")
-  actif     Boolean  @default(true)
-  creeLe    DateTime @default(now()) @map("cree_le")
+  id             String   @id @default(cuid())
+  version        String   @unique
+  changelog      String?
+  driveUrl       String?  @map("drive_url")
+  downloadUrlMac String?  @map("download_url_mac")
+  downloadUrlWin String?  @map("download_url_win")
+  actif          Boolean  @default(true)
+  creeLe         DateTime @default(now()) @map("cree_le")
 
   @@map("app_versions")
 }
