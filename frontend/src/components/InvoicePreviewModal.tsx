@@ -45,9 +45,11 @@ export function InvoicePreviewModal({
       /\/$/,
       '',
     );
+    // Hors /api : URL publique de vérification
+    const origin = apiBase.replace(/\/api$/, '');
     const payload =
       code && code !== '—'
-        ? `${apiBase}/facturation/verifier/${code}`
+        ? `${origin}/v/${encodeURIComponent(code)}`
         : `eXpert SARLU · ${data.titre} ${data.numero}`;
     return `https://api.qrserver.com/v1/create-qr-code/?size=140x140&data=${encodeURIComponent(payload)}`;
   }, [code, data.numero, data.titre]);

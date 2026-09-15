@@ -20,6 +20,18 @@ export class FacturationService {
     private notifications: NotificationsService,
   ) {}
 
+  /** URL publique du QR (hors /api) — ex. https://api.expertsarlu.com/v/CODE */
+  private buildVerifyUrl(code: string) {
+    const base = (
+      process.env.PUBLIC_VERIFY_BASE_URL ||
+      process.env.APP_PUBLIC_URL ||
+      process.env.PUBLIC_API_URL ||
+      'https://expertsarlu-production.up.railway.app'
+    ).replace(/\/$/, '');
+    // Toujours /v/:code — pas /api/facturation/...
+    return `${base}/v/${encodeURIComponent(code)}`;
+  }
+
   private async attachPdf(
     factureId: string,
     input: {
@@ -47,11 +59,7 @@ export class FacturationService {
       existing?.codeVerification ||
       PdfService.makeVerificationCode(`${input.numero}-${factureId}-${Date.now()}`);
 
-    const publicBase =
-      process.env.APP_PUBLIC_URL ||
-      process.env.PUBLIC_API_URL ||
-      'https://expertsarlu-production.up.railway.app';
-    const verifyUrl = `${publicBase.replace(/\/$/, '')}/api/facturation/verifier/${code}`;
+    const verifyUrl = this.buildVerifyUrl(code);
 
     const stored = await this.pdf.buildAndStore({
       ...input,
@@ -308,11 +316,7 @@ export class FacturationService {
       facture.codeVerification ||
       PdfService.makeVerificationCode(`${facture.numero}-${facture.id}-${Date.now()}`);
 
-    const publicBase =
-      process.env.APP_PUBLIC_URL ||
-      process.env.PUBLIC_API_URL ||
-      'https://expertsarlu-production.up.railway.app';
-    const verifyUrl = `${publicBase.replace(/\/$/, '')}/api/facturation/verifier/${code}`;
+    const verifyUrl = this.buildVerifyUrl(code);
 
     const stored = await this.pdf.buildAndStore({
       titre,

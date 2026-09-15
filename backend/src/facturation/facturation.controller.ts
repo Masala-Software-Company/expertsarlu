@@ -178,26 +178,20 @@ export class FacturationController {
     const wantsJson =
       format === 'json' || (accept ?? '').includes('application/json');
 
+    // Anciens QR /api/... → redirigent vers l’URL publique courte /v/:code
+    if (!wantsJson) {
+      return res.redirect(302, `/v/${encodeURIComponent(code.trim().toUpperCase())}`);
+    }
+
     try {
       const data = await this.facturation.verifierParCode(code);
-      if (wantsJson) {
-        return res.json(data);
-      }
-      res.setHeader('Content-Type', 'text/html; charset=utf-8');
-      res.setHeader('Cache-Control', 'no-store');
-      return res.send(this.facturation.renderVerifierHtml(data, code));
+      return res.json(data);
     } catch {
-      if (wantsJson) {
-        return res.status(404).json({
-          message: 'Code de vérification invalide',
-          error: 'Not Found',
-          statusCode: 404,
-        });
-      }
-      res.status(404);
-      res.setHeader('Content-Type', 'text/html; charset=utf-8');
-      res.setHeader('Cache-Control', 'no-store');
-      return res.send(this.facturation.renderVerifierHtml(null, code));
+      return res.status(404).json({
+        message: 'Code de vérification invalide',
+        error: 'Not Found',
+        statusCode: 404,
+      });
     }
   }
 
