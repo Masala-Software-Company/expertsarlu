@@ -1,0 +1,184 @@
+name: Desktop release
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'frontend/**'
+      - '.github/workflows/desktop-release.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  VITE_API_URL_DEFAULT: https://expertsarlu-production.up.railway.app/api
+
+jobs:
+  version:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.ver.outputs.version }}
+      tag: ${{ steps.ver.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: ver
+        run: |
+          BASE=$(node -p "require('./frontend/package.json').version")
+          VERSION="${BASE}.${GITHUB_RUN_NUMBER}"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=v$VERSION" >> "$GITHUB_OUTPUT"
+
+  build:
+    needs: version
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            platform: macos
+            bundles: dmg
+          - os: windows-latest
+            platform: windows
+            bundles: nsis
+          - os: ubuntu-22.04
+            platform: linux
+            bundles: appimage,deb
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Linux dependencies
+        if: matrix.platform == 'linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+
+      - name: Install JS deps
+        run: pnpm install --frozen-lockfile
+
+      - name: Build Tauri
+        working-directory: frontend
+        env:
+          VITE_API_URL: ${{ vars.VITE_API_URL }}
+          VITE_APP_VERSION: ${{ needs.version.outputs.version }}
+        run: |
+          export VITE_API_URL="${VITE_API_URL:-https://expertsarlu-production.up.railway.app/api}"
+          pnpm exec tauri build --bundles ${{ matrix.bundles }}
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: expert-${{ matrix.platform }}-${{ needs.version.outputs.version }}
+          path: |
+            frontend/src-tauri/target/release/bundle/dmg/*.dmg
+            frontend/src-tauri/target/release/bundle/nsis/*.exe
+            frontend/src-tauri/target/release/bundle/msi/*.msi
+            frontend/src-tauri/target/release/bundle/appimage/*.AppImage
+            frontend/src-tauri/target/release/bundle/deb/*.deb
+          if-no-files-found: warn
+
+  release:
+    needs: [version, build]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+
+      - name: List files
+        run: find dist -type f | sort
+
+      - name: Create GitHub Release
+        id: release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.version.outputs.tag }}
+          name: eXpert desktop ${{ needs.version.outputs.version }}
+          body: |
+            ## Installateurs eXpert — à partager avec l’équipe
+
+            | OS | Fichier |
+            |----|---------|
+            | **Apple (macOS)** | `.dmg` |
+            | **Windows** | `.exe` (NSIS) |
+            | **Linux** | `.AppImage` / `.deb` |
+
+            1. Téléchargez le fichier correspondant à votre ordinateur
+            2. Installez / glissez l’app dans Applications (Mac) ou exécutez le setup (Windows)
+            3. Lancez **eXpert** — l’API pointe déjà vers la production
+
+            Remplacez l’ancienne version si déjà installée.
+          files: |
+            dist/**/*.dmg
+            dist/**/*.exe
+            dist/**/*.msi
+            dist/**/*.AppImage
+            dist/**/*.deb
+          generate_release_notes: true
+
+      - name: Publish version to API (liens Mac + Windows)
+        if: ${{ secrets.RELEASE_SECRET != '' }}
+        env:
+          RELEASE_SECRET: ${{ secrets.RELEASE_SECRET }}
+          API_BASE: ${{ vars.API_BASE_URL }}
+          VERSION: ${{ needs.version.outputs.version }}
+          TAG: ${{ needs.version.outputs.tag }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          API_BASE="${API_BASE:-https://expertsarlu-production.up.railway.app}"
+          PAGE="${GITHUB_SERVER_URL}/${REPO}/releases/tag/${TAG}"
+
+          ASSETS_JSON=$(curl -fsS \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/$REPO/releases/tags/$TAG")
+
+          MAC=$(printf '%s' "$ASSETS_JSON" | node -e "
+            const d=JSON.parse(require('fs').readFileSync(0,'utf8'));
+            const a=d.assets||[];
+            const m=a.find(x=>/\.dmg$/i.test(x.name));
+            process.stdout.write(m?.browser_download_url||'');
+          ")
+          WIN=$(printf '%s' "$ASSETS_JSON" | node -e "
+            const d=JSON.parse(require('fs').readFileSync(0,'utf8'));
+            const a=d.assets||[];
+            const w=a.find(x=>/\.exe$/i.test(x.name))||a.find(x=>/\.msi$/i.test(x.name));
+            process.stdout.write(w?.browser_download_url||'');
+          ")
+
+          echo "mac=$MAC"
+          echo "win=$WIN"
+
+          PAYLOAD=$(VERSION="$VERSION" PAGE="$PAGE" MAC="$MAC" WIN="$WIN" node -e "
+            const body={
+              version: process.env.VERSION,
+              changelog: 'Installateurs macOS (.dmg) et Windows (.exe) — partagez ces liens avec l’équipe',
+              downloadUrl: process.env.PAGE || '',
+            };
+            if (process.env.MAC) body.downloadUrlMac = process.env.MAC;
+            if (process.env.WIN) body.downloadUrlWin = process.env.WIN;
+            process.stdout.write(JSON.stringify(body));
+          ")
+
+          curl -fsS -X POST "$API_BASE/api/version/publish" \
+            -H "Content-Type: application/json" \
+            -H "X-Release-Secret: $RELEASE_SECRET" \
+            -d "$PAYLOAD"
