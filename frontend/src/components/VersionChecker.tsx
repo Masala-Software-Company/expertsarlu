@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import axios from 'axios';
-import { Apple, Download, Monitor, RefreshCw, X } from 'lucide-react';
+import { Download, RefreshCw, X } from 'lucide-react';
 import { open } from '@tauri-apps/plugin-shell';
 
 const APP_VERSION = import.meta.env.VITE_APP_VERSION ?? '1.0.0';
@@ -27,6 +27,13 @@ function isNewer(remote: string, local: string) {
     if (x < y) return false;
   }
   return false;
+}
+
+function detectPlatform(): 'mac' | 'win' | 'other' {
+  const ua = navigator.userAgent.toLowerCase();
+  if (ua.includes('mac')) return 'mac';
+  if (ua.includes('win')) return 'win';
+  return 'other';
 }
 
 async function openDownload(url: string) {
@@ -63,9 +70,17 @@ export function VersionChecker() {
     };
   }, []);
 
-  const mac = latest?.downloadUrlMac;
-  const win = latest?.downloadUrlWin;
-  const fallback = latest?.downloadUrl || latest?.driveUrl || latest?.releasesUrl;
+  const platform = detectPlatform();
+  const updateUrl =
+    (platform === 'mac' && latest?.downloadUrlMac) ||
+    (platform === 'win' && latest?.downloadUrlWin) ||
+    latest?.downloadUrlMac ||
+    latest?.downloadUrlWin ||
+    latest?.downloadUrl ||
+    latest?.driveUrl ||
+    latest?.releasesUrl ||
+    null;
+
   const show =
     latest &&
     dismissed !== latest.version &&
@@ -78,39 +93,22 @@ export function VersionChecker() {
       <div className="pointer-events-auto flex max-w-3xl flex-wrap items-center gap-3 rounded-xl bg-brand px-4 py-3 text-white shadow-soft">
         <RefreshCw className="h-4 w-4 shrink-0 opacity-90" />
         <div className="min-w-0 flex-1 text-sm">
-          <strong>Mise à jour {latest.version}</strong>
-          <span className="opacity-90"> (vous avez {APP_VERSION}). </span>
-          {latest.changelog ? <span className="opacity-90">{latest.changelog} </span> : null}
+          <strong>Nouvelle version {latest.version}</strong>
+          <span className="opacity-90"> — vous avez {APP_VERSION}. </span>
+          {latest.changelog ? (
+            <span className="opacity-90">{latest.changelog} </span>
+          ) : null}
         </div>
-        <div className="flex flex-wrap gap-2">
-          {mac && (
-            <button
-              type="button"
-              className="inline-flex items-center gap-1 rounded-lg bg-white/15 px-3 py-1.5 text-xs font-semibold hover:bg-white/25"
-              onClick={() => void openDownload(mac)}
-            >
-              <Apple className="h-3.5 w-3.5" /> macOS (.dmg)
-            </button>
-          )}
-          {win && (
-            <button
-              type="button"
-              className="inline-flex items-center gap-1 rounded-lg bg-white/15 px-3 py-1.5 text-xs font-semibold hover:bg-white/25"
-              onClick={() => void openDownload(win)}
-            >
-              <Monitor className="h-3.5 w-3.5" /> Windows (.exe)
-            </button>
-          )}
-          {!mac && !win && fallback && (
-            <button
-              type="button"
-              className="inline-flex items-center gap-1 rounded-lg bg-white/15 px-3 py-1.5 text-xs font-semibold hover:bg-white/25"
-              onClick={() => void openDownload(fallback)}
-            >
-              <Download className="h-3.5 w-3.5" /> Télécharger
-            </button>
-          )}
-        </div>
+        {updateUrl ? (
+          <button
+            type="button"
+            className="inline-flex items-center gap-1.5 rounded-lg bg-white px-4 py-2 text-sm font-bold text-brand hover:bg-white/90"
+            onClick={() => void openDownload(updateUrl)}
+          >
+            <Download className="h-4 w-4" />
+            Mettre à jour
+          </button>
+        ) : null}
         <button
           type="button"
           className="rounded-md p-1 hover:bg-white/15 shrink-0"
