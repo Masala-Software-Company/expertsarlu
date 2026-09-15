@@ -41,8 +41,10 @@ export function DesktopDownloads({ compact = false }: { compact?: boolean }) {
   if (!mac && !win && !page) {
     return (
       <div className="rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-white/60">
-        Installateurs en cours de publication. Relancez le workflow{' '}
-        <span className="font-mono text-white/80">Desktop release</span> sur GitHub.
+        Liens d’installateurs non configurés. Renseignez{' '}
+        <span className="font-mono text-white/80">DOWNLOAD_MAC_URL</span> /{' '}
+        <span className="font-mono text-white/80">DOWNLOAD_WIN_URL</span> sur
+        l’API (ou un dossier Drive partagé).
       </div>
     );
   }
