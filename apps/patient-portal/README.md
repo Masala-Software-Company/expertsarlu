@@ -32,7 +32,14 @@ Variables :
 VITE_API_URL=http://localhost:3000/api
 ```
 
-En production, pointer vers l’API Railway et ajouter le domaine Vercel dans `CORS_ORIGINS`.
+En production, pointer vers l’API Railway :
+
+```
+VITE_API_URL=https://expertsarlu-production.up.railway.app/api
+```
+
+Sur Railway, le domaine Vercel doit être autorisé en CORS (déjà inclus pour
+`https://patient-form-gold.vercel.app` ; sinon ajoutez-le dans `CORS_ORIGINS`).
 
 ## Déploiement Vercel
 

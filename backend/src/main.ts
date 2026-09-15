@@ -9,20 +9,21 @@ async function bootstrap() {
 
   app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }));
 
-  const origins = (
-    process.env.CORS_ORIGINS ??
-    [
-      'http://localhost:1420',
-      'http://localhost:5174',
-      'http://localhost:5173',
-      'https://patient.expert-evac.com',
-      'https://form.expert-evac.com',
-      'https://verify.expert-evac.com',
-    ].join(',')
-  )
+  const defaultOrigins = [
+    'http://localhost:1420',
+    'http://localhost:5174',
+    'http://localhost:5173',
+    'https://patient.expert-evac.com',
+    'https://form.expert-evac.com',
+    'https://verify.expert-evac.com',
+    'https://patient-form-gold.vercel.app',
+  ];
+  const envOrigins = (process.env.CORS_ORIGINS ?? '')
     .split(',')
     .map((o) => o.trim())
     .filter(Boolean);
+  // Env complète les origines par défaut (ne les remplace pas)
+  const origins = [...new Set([...defaultOrigins, ...envOrigins])];
 
   // Tauri (macOS/Windows) peut envoyer tauri://localhost, https://tauri.localhost ou Origin: null
   const tauriOrigins = [
