@@ -20,15 +20,12 @@ export class FacturationService {
     private notifications: NotificationsService,
   ) {}
 
-  /** URL publique du QR (hors /api) — ex. https://api.expertsarlu.com/v/CODE */
+  /** URL publique du QR — ex. https://verify.expert-evac.com/v/CODE */
   private buildVerifyUrl(code: string) {
     const base = (
       process.env.PUBLIC_VERIFY_BASE_URL ||
-      process.env.APP_PUBLIC_URL ||
-      process.env.PUBLIC_API_URL ||
-      'https://expertsarlu-production.up.railway.app'
+      'https://verify.expert-evac.com'
     ).replace(/\/$/, '');
-    // Toujours /v/:code — pas /api/facturation/...
     return `${base}/v/${encodeURIComponent(code)}`;
   }
 

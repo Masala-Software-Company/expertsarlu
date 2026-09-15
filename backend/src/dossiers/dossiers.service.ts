@@ -648,7 +648,6 @@ export class DossiersService {
   private buildSuiviPublicUrl(token: string) {
     const base = (
       process.env.PUBLIC_SUIVI_BASE_URL ||
-      process.env.PUBLIC_PATIENT_PORTAL_URL ||
       'https://patient.expert-evac.com'
     ).replace(/\/$/, '');
     return `${base}/suivi/${encodeURIComponent(token)}`;

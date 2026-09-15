@@ -41,15 +41,13 @@ export function InvoicePreviewModal({
   const emis = data.emisLe ? new Date(data.emisLe) : new Date();
 
   const qrUrl = useMemo(() => {
-    const apiBase = (import.meta.env.VITE_API_URL ?? 'http://localhost:3000/api').replace(
-      /\/$/,
-      '',
-    );
-    // Hors /api : URL publique de vérification
-    const origin = apiBase.replace(/\/api$/, '');
+    const verifyBase = (
+      import.meta.env.VITE_PUBLIC_VERIFY_BASE_URL ||
+      'https://verify.expert-evac.com'
+    ).replace(/\/$/, '');
     const payload =
       code && code !== '—'
-        ? `${origin}/v/${encodeURIComponent(code)}`
+        ? `${verifyBase}/v/${encodeURIComponent(code)}`
         : `eXpert SARLU · ${data.titre} ${data.numero}`;
     return `https://api.qrserver.com/v1/create-qr-code/?size=140x140&data=${encodeURIComponent(payload)}`;
   }, [code, data.numero, data.titre]);

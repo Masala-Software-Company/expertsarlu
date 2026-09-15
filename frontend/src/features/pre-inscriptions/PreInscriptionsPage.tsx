@@ -144,6 +144,23 @@ export function PreInscriptionsPage() {
           Demandes de pré-enregistrement reçues via le portail public — à vérifier avant création
           du dossier.
         </p>
+        <p className="mt-2 text-xs text-muted">
+          Formulaire public :{' '}
+          <a
+            href={
+              import.meta.env.VITE_PUBLIC_FORM_BASE_URL ||
+              'https://form.expert-evac.com'
+            }
+            target="_blank"
+            rel="noreferrer"
+            className="font-semibold text-brand hover:underline"
+          >
+            {(
+              import.meta.env.VITE_PUBLIC_FORM_BASE_URL ||
+              'https://form.expert-evac.com'
+            ).replace(/^https?:\/\//, '')}
+          </a>
+        </p>
       </div>
 
       <div className="flex flex-wrap gap-3">
