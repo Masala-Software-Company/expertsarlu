@@ -8,6 +8,9 @@ import { StorageService } from '../storage/storage.service';
 
 const MAC_KEY = 'releases/eXpert-mac.dmg';
 const WIN_KEY = 'releases/eXpert-win.exe';
+/** Bundles Tauri updater (signés) */
+const MAC_UPDATE_KEY = 'releases/eXpert.app.tar.gz';
+const WIN_UPDATE_KEY = 'releases/eXpert-setup.exe';
 
 @ApiTags('version')
 @Controller('version')
@@ -49,26 +52,22 @@ export class VersionController {
     const stableMac = `${api}/version/download/mac`;
     const stableWin = `${api}/version/download/win`;
 
-    // Toujours exposer les proxies API stables (évite les liens S3 signés expirés
-    // stockés en base ou dans les variables d’environnement Railway).
     const downloadUrlMac = stableMac;
     const downloadUrlWin = stableWin;
 
     const pageUrl =
       row?.driveUrl || this.config.get('DRIVE_DOWNLOAD_URL') || undefined;
 
-    const configVersion = this.config.get<string>('APP_VERSION', '1.0.4') ?? '1.0.4';
-    // Plancher minimal : force la notif pour tous les installateurs ≤ 1.0.3
-    const FORCE_MIN = '1.0.4';
+    const configVersion = this.config.get<string>('APP_VERSION', '1.0.5') ?? '1.0.5';
+    const FORCE_MIN = '1.0.5';
     const dbVersion = row?.version ?? '0.0.0';
     let version = dbVersion;
     if (this.isNewer(configVersion, version)) version = configVersion;
     if (this.isNewer(FORCE_MIN, version)) version = FORCE_MIN;
 
     const changelog =
-      'Mise à jour eXpert disponible — corrections factures, documents et installateurs. Cliquez sur Mettre à jour.';
+      'Mise à jour silencieuse eXpert — installation automatique au redémarrage.';
 
-    // Synchronise la table si la version publiée est plus récente
     if (this.isNewer(version, dbVersion) || !row?.actif) {
       await this.prisma.appVersion.updateMany({ data: { actif: false } });
       await this.prisma.appVersion.upsert({
@@ -89,7 +88,6 @@ export class VersionController {
         },
       });
     } else if (row) {
-      // Nettoie les URLs signées obsolètes en base
       if (
         row.downloadUrlMac !== stableMac ||
         row.downloadUrlWin !== stableWin
@@ -109,7 +107,52 @@ export class VersionController {
       downloadUrlMac,
       downloadUrlWin,
       releasesUrl: pageUrl,
+      silentUpdate: true,
       source: row ? 'database' : 'config',
+    };
+  }
+
+  /**
+   * Manifest Tauri updater — format officiel latest.json
+   * https://v2.tauri.app/plugin/updater/
+   */
+  @Public()
+  @Get('tauri-update')
+  async tauriUpdate() {
+    const row = await this.prisma.appVersion.findFirst({
+      where: { actif: true },
+      orderBy: { creeLe: 'desc' },
+    });
+    if (!row) {
+      throw new NotFoundException('Aucune version publiée');
+    }
+
+    const api = this.publicApiBase();
+    const macUrl = `${api}/version/download/mac-update`;
+    const winUrl = `${api}/version/download/win-update`;
+    const macSig = row.updaterMacSig?.trim();
+    const winSig = row.updaterWinSig?.trim();
+
+    const platforms: Record<string, { signature: string; url: string }> = {};
+    if (macSig) {
+      platforms['darwin-x86_64'] = { signature: macSig, url: macUrl };
+      platforms['darwin-aarch64'] = { signature: macSig, url: macUrl };
+    }
+    if (winSig) {
+      platforms['windows-x86_64'] = { signature: winSig, url: winUrl };
+    }
+
+    if (!Object.keys(platforms).length) {
+      throw new NotFoundException(
+        'Bundles updater non publiés — installez la version manuelle une dernière fois.',
+      );
+    }
+
+    return {
+      version: row.version,
+      notes: row.changelog ?? 'Mise à jour eXpert',
+      pub_date: row.creeLe.toISOString(),
+      platforms,
     };
   }
 
@@ -131,7 +174,6 @@ export class VersionController {
   @Public()
   @Get('download/mac')
   async downloadMac(@Res({ passthrough: true }) res: Response) {
-    // Ne jamais rediriger vers une URL S3 signée / expirée
     const external = this.pickStableUrl(this.config.get<string>('DOWNLOAD_MAC_URL'));
     if (external) {
       res.redirect(302, external);
@@ -151,6 +193,28 @@ export class VersionController {
     return this.streamInstaller(
       WIN_KEY,
       'eXpert-windows-setup.exe',
+      'application/octet-stream',
+      res,
+    );
+  }
+
+  @Public()
+  @Get('download/mac-update')
+  async downloadMacUpdate(@Res({ passthrough: true }) res: Response) {
+    return this.streamInstaller(
+      MAC_UPDATE_KEY,
+      'eXpert.app.tar.gz',
+      'application/gzip',
+      res,
+    );
+  }
+
+  @Public()
+  @Get('download/win-update')
+  async downloadWinUpdate(@Res({ passthrough: true }) res: Response) {
+    return this.streamInstaller(
+      WIN_UPDATE_KEY,
+      'eXpert-setup.exe',
       'application/octet-stream',
       res,
     );

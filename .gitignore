@@ -13,6 +13,8 @@ coverage
 backend/uploads
 frontend/src-tauri/target
 frontend/src-tauri/gen
+frontend/src-tauri/keys/*.key
+!frontend/src-tauri/keys/*.key.pub
 *.dmg
 *.exe
 *.msi
@@ -25,3 +27,6 @@ pnpm-lock.yaml.bak
 
 # Document de spécifications — hors dépôt
 eXpert-SARLU-Dossier-Specifications.md
+
+# Installateurs locaux
+/releases/

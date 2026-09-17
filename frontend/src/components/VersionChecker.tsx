@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Download, RefreshCw, X } from 'lucide-react';
 
-/** Toujours interroger la prod — même si le build pointe vers une autre API. */
 const PRODUCTION_VERSION_URL =
   'https://expertsarlu-production.up.railway.app/api/version/latest';
 const LOCAL_VERSION =
@@ -17,7 +16,10 @@ type Latest = {
   downloadUrlMac?: string;
   downloadUrlWin?: string;
   releasesUrl?: string;
+  silentUpdate?: boolean;
 };
+
+type UpdatePhase = 'idle' | 'checking' | 'available' | 'downloading' | 'installing' | 'done' | 'error';
 
 function isNewer(remote: string, local: string) {
   const a = remote.replace(/^v/i, '').split('.').map((n) => parseInt(n, 10) || 0);
@@ -36,6 +38,10 @@ function detectPlatform(): 'mac' | 'win' | 'other' {
   if (ua.includes('mac')) return 'mac';
   if (ua.includes('win')) return 'win';
   return 'other';
+}
+
+function isTauri() {
+  return typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
 }
 
 async function openDownload(url: string) {
@@ -74,8 +80,37 @@ async function fetchLatest(): Promise<Latest | null> {
   return null;
 }
 
+/** Mise à jour silencieuse via plugin Tauri (in-place). */
+async function runSilentUpdate(
+  onPhase: (p: UpdatePhase, detail?: string) => void,
+): Promise<boolean> {
+  try {
+    const { check } = await import('@tauri-apps/plugin-updater');
+    const { relaunch } = await import('@tauri-apps/plugin-process');
+    onPhase('checking');
+    const update = await check();
+    if (!update) {
+      onPhase('idle');
+      return false;
+    }
+    onPhase('downloading', update.version);
+    await update.downloadAndInstall((event) => {
+      if (event.event === 'Started') onPhase('downloading', update.version);
+      if (event.event === 'Finished') onPhase('installing', update.version);
+    });
+    onPhase('done', update.version);
+    await relaunch();
+    return true;
+  } catch (e) {
+    onPhase('error', e instanceof Error ? e.message : 'Échec mise à jour');
+    return false;
+  }
+}
+
 export function VersionChecker() {
   const [latest, setLatest] = useState<Latest | null>(null);
+  const [phase, setPhase] = useState<UpdatePhase>('idle');
+  const [phaseDetail, setPhaseDetail] = useState<string | undefined>();
   const [dismissed, setDismissed] = useState<string | null>(() => {
     try {
       return sessionStorage.getItem('expert-update-dismissed');
@@ -83,25 +118,45 @@ export function VersionChecker() {
       return null;
     }
   });
+  const [silentTried, setSilentTried] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
 
     const check = async () => {
       const data = await fetchLatest();
-      if (!cancelled && data) setLatest(data);
+      if (cancelled || !data) return;
+      setLatest(data);
+
+      // Auto silent update in desktop builds when remote is newer
+      if (
+        isTauri() &&
+        !silentTried &&
+        isNewer(data.version, LOCAL_VERSION)
+      ) {
+        setSilentTried(true);
+        const ok = await runSilentUpdate((p, d) => {
+          if (!cancelled) {
+            setPhase(p);
+            setPhaseDetail(d);
+          }
+        });
+        if (!ok && !cancelled) {
+          // fallback : bannière manuelle
+          setPhase('available');
+        }
+      }
     };
 
     void check();
     const id = window.setInterval(() => void check(), POLL_MS);
-    // 2e check rapide au cas où le réseau démarre après le splash
     const retry = window.setTimeout(() => void check(), 8_000);
     return () => {
       cancelled = true;
       window.clearInterval(id);
       window.clearTimeout(retry);
     };
-  }, []);
+  }, [silentTried]);
 
   const platform = detectPlatform();
   const updateUrl =
@@ -114,12 +169,39 @@ export function VersionChecker() {
     latest?.releasesUrl ||
     null;
 
-  const show =
-    latest &&
+  const hasUpdate = !!(latest && isNewer(latest.version, LOCAL_VERSION));
+  const busy =
+    phase === 'checking' ||
+    phase === 'downloading' ||
+    phase === 'installing' ||
+    phase === 'done';
+  const showProgress = isTauri() && hasUpdate && busy;
+  const showManual =
+    hasUpdate &&
+    latest != null &&
     dismissed !== latest.version &&
-    isNewer(latest.version, LOCAL_VERSION);
+    !busy;
 
-  if (!show || !latest) return null;
+  if (showProgress && latest) {
+    const label =
+      phase === 'checking'
+        ? 'Recherche de mise à jour…'
+        : phase === 'downloading'
+          ? `Téléchargement de la v${phaseDetail ?? latest.version}…`
+          : phase === 'installing'
+            ? 'Installation en cours…'
+            : 'Redémarrage…';
+    return (
+      <div className="fixed inset-x-0 top-0 z-[60] flex justify-center p-3 pointer-events-none">
+        <div className="pointer-events-auto flex max-w-xl items-center gap-3 rounded-xl bg-brand px-4 py-3 text-white shadow-soft">
+          <RefreshCw className="h-4 w-4 shrink-0 animate-spin opacity-90" />
+          <div className="text-sm font-medium">{label}</div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!showManual || !latest) return null;
 
   return (
     <div className="fixed inset-x-0 top-0 z-[60] flex justify-center p-3 pointer-events-none">
@@ -128,18 +210,37 @@ export function VersionChecker() {
         <div className="min-w-0 flex-1 text-sm">
           <strong>Nouvelle version {latest.version}</strong>
           <span className="opacity-90"> — vous avez {LOCAL_VERSION}. </span>
-          {latest.changelog ? (
+          {phase === 'error' ? (
+            <span className="opacity-90">
+              Mise à jour auto impossible — téléchargez l’installateur.{' '}
+            </span>
+          ) : latest.changelog ? (
             <span className="opacity-90">{latest.changelog} </span>
           ) : null}
         </div>
-        {updateUrl ? (
+        {isTauri() ? (
           <button
             type="button"
             className="inline-flex items-center gap-1.5 rounded-lg bg-white px-4 py-2 text-sm font-bold text-brand hover:bg-white/90"
+            onClick={() => {
+              void runSilentUpdate((p, d) => {
+                setPhase(p);
+                setPhaseDetail(d);
+              });
+            }}
+          >
+            <RefreshCw className="h-4 w-4" />
+            Mettre à jour maintenant
+          </button>
+        ) : null}
+        {updateUrl ? (
+          <button
+            type="button"
+            className="inline-flex items-center gap-1.5 rounded-lg bg-white/15 px-3 py-2 text-sm font-semibold text-white hover:bg-white/25"
             onClick={() => void openDownload(updateUrl)}
           >
             <Download className="h-4 w-4" />
-            Mettre à jour
+            Installateur
           </button>
         ) : null}
         <button

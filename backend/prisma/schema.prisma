@@ -622,6 +622,10 @@ model AppVersion {
   driveUrl       String?  @map("drive_url")
   downloadUrlMac String?  @map("download_url_mac")
   downloadUrlWin String?  @map("download_url_win")
+  /// Signature minisign du bundle updater mac (.app.tar.gz.sig)
+  updaterMacSig  String?  @map("updater_mac_sig") @db.Text
+  /// Signature minisign du bundle updater Windows (.exe.sig)
+  updaterWinSig  String?  @map("updater_win_sig") @db.Text
   actif          Boolean  @default(true)
   creeLe         DateTime @default(now()) @map("cree_le")
 
