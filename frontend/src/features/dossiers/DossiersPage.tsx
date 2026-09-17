@@ -52,6 +52,8 @@ export function DossiersPage() {
     mutationFn: async (payload: {
       data: Record<string, unknown>;
       photo?: File | null;
+      passeport?: File | null;
+      documentMedical?: File | null;
     }) => {
       const dossier = (
         await api.post<DossierRow>('/dossiers', payload.data)
@@ -60,6 +62,16 @@ export function DossiersPage() {
         const fd = new FormData();
         fd.append('file', payload.photo);
         await api.post(`/patients/${dossier.patient.id}/photo`, fd);
+      }
+      if (payload.passeport) {
+        const fd = new FormData();
+        fd.append('file', payload.passeport);
+        await api.post(`/ged/${dossier.id}?categorie=IDENTITE`, fd);
+      }
+      if (payload.documentMedical) {
+        const fd = new FormData();
+        fd.append('file', payload.documentMedical);
+        await api.post(`/ged/${dossier.id}?categorie=MEDICAL`, fd);
       }
       return dossier;
     },

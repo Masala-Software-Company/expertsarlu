@@ -27,7 +27,12 @@ export function formatApiError(err: unknown, fallback: string) {
   if (status === 404) {
     return 'Le service de pré-inscription n’est pas encore disponible sur le serveur. Réessayez après la mise à jour.';
   }
-  if (status === 413) return 'Le fichier photo est trop volumineux (max. 5 Mo).';
+  if (status === 413) return 'Un des fichiers est trop volumineux (photo max. 5 Mo, documents max. 10 Mo).';
+  if (status === 409) {
+    return msg
+      ? String(msg)
+      : 'Une demande existe déjà pour ces informations. Vous ne pouvez pas vous enregistrer une seconde fois.';
+  }
   if (status === 429) return 'Trop de tentatives. Attendez une minute puis réessayez.';
   if (msg) return String(msg);
   return fallback;
@@ -38,10 +43,17 @@ export async function fetchInstitutions() {
   return data;
 }
 
-export async function submitPreInscription(payload: unknown, photo: File) {
+export async function submitPreInscription(
+  payload: unknown,
+  files: { photo: File; passeport: File; documentMedical?: File | null },
+) {
   const form = new FormData();
   form.append('payload', JSON.stringify(payload));
-  form.append('photo', photo);
+  form.append('photo', files.photo);
+  form.append('passeport', files.passeport);
+  if (files.documentMedical) {
+    form.append('documentMedical', files.documentMedical);
+  }
   const { data } = await api.post<{
     reference: string;
     statut: string;

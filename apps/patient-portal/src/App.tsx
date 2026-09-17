@@ -99,6 +99,8 @@ function InscriptionApp() {
   const [stepIndex, setStepIndex] = useState(0);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [photo, setPhoto] = useState<File | null>(null);
+  const [passeport, setPasseport] = useState<File | null>(null);
+  const [documentMedical, setDocumentMedical] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const [institutions, setInstitutions] = useState<Institution[]>([]);
   const [submitting, setSubmitting] = useState(false);
@@ -147,6 +149,13 @@ function InscriptionApp() {
       } else if (photo.size > 5 * 1024 * 1024) {
         e.photo = 'Fichier trop volumineux (max. 5 Mo)';
       }
+      if (!passeport) e.passeport = 'Le scan / photo du passeport est obligatoire';
+      else if (passeport.size > 10 * 1024 * 1024) {
+        e.passeport = 'Passeport trop volumineux (max. 10 Mo)';
+      }
+      if (documentMedical && documentMedical.size > 10 * 1024 * 1024) {
+        e.documentMedical = 'Document médical trop volumineux (max. 10 Mo)';
+      }
     }
     setErrors(e);
     if (Object.keys(e).length) return;
@@ -162,7 +171,7 @@ function InscriptionApp() {
     ev.preventDefault();
     const e = validateStep('verification', form);
     setErrors(e);
-    if (Object.keys(e).length || !photo) return;
+    if (Object.keys(e).length || !photo || !passeport) return;
 
     setSubmitting(true);
     setSubmitError(null);
@@ -192,7 +201,11 @@ function InscriptionApp() {
         confirmationExactitude: form.confirmationExactitude,
         website: form.website,
       };
-      const res = await submitPreInscription(payload, photo);
+      const res = await submitPreInscription(payload, {
+        photo,
+        passeport,
+        documentMedical,
+      });
       setResult({ reference: res.reference, message: res.message });
       setStepIndex(steps.length - 1);
     } catch (err: unknown) {
@@ -682,41 +695,89 @@ function InscriptionApp() {
           )}
 
           {step === 'photo' && (
-            <section className="space-y-4">
-              <h2 className="text-2xl font-extrabold tracking-tight">Photo de profil</h2>
-              <p className="text-sm text-ink/60">JPG, JPEG ou PNG — 5 Mo maximum.</p>
-              <div className="flex flex-col items-start gap-4 sm:flex-row sm:items-center">
-                <div className="flex h-36 w-36 items-center justify-center overflow-hidden rounded-2xl border border-dashed border-brand/40 bg-brand/[0.06]">
-                  {preview ? (
-                    <img src={preview} alt="Aperçu" className="h-full w-full object-cover" />
-                  ) : (
-                    <span className="px-3 text-center text-xs text-ink/45">Aperçu</span>
-                  )}
+            <section className="space-y-6">
+              <div className="space-y-4">
+                <h2 className="text-2xl font-extrabold tracking-tight">Photo de profil</h2>
+                <p className="text-sm text-ink/60">JPG, JPEG ou PNG — 5 Mo maximum.</p>
+                <div className="flex flex-col items-start gap-4 sm:flex-row sm:items-center">
+                  <div className="flex h-36 w-36 items-center justify-center overflow-hidden rounded-2xl border border-dashed border-brand/40 bg-brand/[0.06]">
+                    {preview ? (
+                      <img src={preview} alt="Aperçu" className="h-full w-full object-cover" />
+                    ) : (
+                      <span className="px-3 text-center text-xs text-ink/45">Aperçu</span>
+                    )}
+                  </div>
+                  <div>
+                    <label className="btn-primary cursor-pointer">
+                      Télécharger ma photo
+                      <input
+                        type="file"
+                        accept="image/jpeg,image/jpg,image/png"
+                        className="hidden"
+                        onChange={(e) => {
+                          const f = e.target.files?.[0] ?? null;
+                          setPhoto(f);
+                        }}
+                      />
+                    </label>
+                    {photo ? (
+                      <button
+                        type="button"
+                        className="btn-ghost ml-2"
+                        onClick={() => setPhoto(null)}
+                      >
+                        Remplacer
+                      </button>
+                    ) : null}
+                    {errors.photo ? <p className="err mt-2">{errors.photo}</p> : null}
+                  </div>
                 </div>
-                <div>
-                  <label className="btn-primary cursor-pointer">
-                    Télécharger ma photo
-                    <input
-                      type="file"
-                      accept="image/jpeg,image/jpg,image/png"
-                      className="hidden"
-                      onChange={(e) => {
-                        const f = e.target.files?.[0] ?? null;
-                        setPhoto(f);
-                      }}
-                    />
-                  </label>
-                  {photo ? (
-                    <button
-                      type="button"
-                      className="btn-ghost ml-2"
-                      onClick={() => setPhoto(null)}
-                    >
-                      Remplacer
-                    </button>
-                  ) : null}
-                  {errors.photo ? <p className="err mt-2">{errors.photo}</p> : null}
-                </div>
+              </div>
+
+              <div className="space-y-3 border-t border-black/5 pt-5">
+                <h3 className="text-lg font-bold">Passeport *</h3>
+                <p className="text-sm text-ink/60">
+                  Scan ou photo du passeport — PDF, JPG ou PNG (max. 10 Mo). Visible ensuite dans
+                  Documents du dossier.
+                </p>
+                <label className="btn-primary cursor-pointer inline-flex">
+                  {passeport ? passeport.name : 'Télécharger le passeport'}
+                  <input
+                    type="file"
+                    accept="image/*,.pdf,application/pdf"
+                    className="hidden"
+                    onChange={(e) => setPasseport(e.target.files?.[0] ?? null)}
+                  />
+                </label>
+                {errors.passeport ? <p className="err">{errors.passeport}</p> : null}
+              </div>
+
+              <div className="space-y-3 border-t border-black/5 pt-5">
+                <h3 className="text-lg font-bold">Document médical (optionnel)</h3>
+                <p className="text-sm text-ink/60">
+                  Ordonnance, rapport, imagerie… — max. 10 Mo.
+                </p>
+                <label className="btn-primary cursor-pointer inline-flex">
+                  {documentMedical ? documentMedical.name : 'Télécharger un document médical'}
+                  <input
+                    type="file"
+                    accept="image/*,.pdf,application/pdf"
+                    className="hidden"
+                    onChange={(e) => setDocumentMedical(e.target.files?.[0] ?? null)}
+                  />
+                </label>
+                {documentMedical ? (
+                  <button
+                    type="button"
+                    className="btn-ghost"
+                    onClick={() => setDocumentMedical(null)}
+                  >
+                    Retirer
+                  </button>
+                ) : null}
+                {errors.documentMedical ? (
+                  <p className="err">{errors.documentMedical}</p>
+                ) : null}
               </div>
             </section>
           )}
@@ -760,8 +821,12 @@ function InscriptionApp() {
                   {institutions.find((i) => i.id === form.partenaireId)?.nom ?? '—'}
                 </SummaryBlock>
               )}
-              <SummaryBlock title="Photo" onEdit={() => goToStep('photo')}>
-                {photo ? photo.name : 'Aucune photo'}
+              <SummaryBlock title="Documents" onEdit={() => goToStep('photo')}>
+                Photo : {photo ? photo.name : 'Aucune'}
+                <br />
+                Passeport : {passeport ? passeport.name : 'Aucun'}
+                <br />
+                Document médical : {documentMedical ? documentMedical.name : 'Aucun (optionnel)'}
               </SummaryBlock>
 
               <label className="flex items-start gap-3 rounded-2xl border border-black/10 bg-brand/[0.04] p-4 text-sm">

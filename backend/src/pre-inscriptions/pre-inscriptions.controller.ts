@@ -8,10 +8,10 @@ import {
   Query,
   Req,
   Res,
-  UploadedFile,
+  UploadedFiles,
   UseInterceptors,
 } from '@nestjs/common';
-import { FileInterceptor } from '@nestjs/platform-express';
+import { FileFieldsInterceptor } from '@nestjs/platform-express';
 import { ApiBearerAuth, ApiBody, ApiConsumes, ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import { PreInscriptionStatut, TypeClient } from '@prisma/client';
@@ -29,7 +29,6 @@ import {
 export class PreInscriptionsController {
   constructor(private service: PreInscriptionsService) {}
 
-  /** Institutions actives pour le sélecteur du portail public. */
   @Public()
   @Throttle({ default: { limit: 30, ttl: 60_000 } })
   @Get('public/institutions')
@@ -45,20 +44,34 @@ export class PreInscriptionsController {
     schema: {
       type: 'object',
       properties: {
-        payload: { type: 'string', description: 'JSON PreInscriptionPayload' },
+        payload: { type: 'string' },
         photo: { type: 'string', format: 'binary' },
+        passeport: { type: 'string', format: 'binary' },
+        documentMedical: { type: 'string', format: 'binary' },
       },
-      required: ['payload', 'photo'],
+      required: ['payload', 'photo', 'passeport'],
     },
   })
   @UseInterceptors(
-    FileInterceptor('photo', {
-      storage: memoryStorage(),
-      limits: { fileSize: 5 * 1024 * 1024 },
-    }),
+    FileFieldsInterceptor(
+      [
+        { name: 'photo', maxCount: 1 },
+        { name: 'passeport', maxCount: 1 },
+        { name: 'documentMedical', maxCount: 1 },
+      ],
+      {
+        storage: memoryStorage(),
+        limits: { fileSize: 10 * 1024 * 1024 },
+      },
+    ),
   )
   soumettre(
-    @UploadedFile() photo: Express.Multer.File,
+    @UploadedFiles()
+    files: {
+      photo?: Express.Multer.File[];
+      passeport?: Express.Multer.File[];
+      documentMedical?: Express.Multer.File[];
+    },
     @Body('payload') payloadRaw: string,
     @Req() req: Request,
   ) {
@@ -68,10 +81,18 @@ export class PreInscriptionsController {
     } catch {
       payload = {} as PreInscriptionPayload;
     }
-    return this.service.soumettrePublic(payload, photo, {
-      ip: req.ip,
-      userAgent: req.headers['user-agent'],
-    });
+    return this.service.soumettrePublic(
+      payload,
+      {
+        photo: files?.photo?.[0],
+        passeport: files?.passeport?.[0],
+        documentMedical: files?.documentMedical?.[0],
+      },
+      {
+        ip: req.ip,
+        userAgent: req.headers['user-agent'],
+      },
+    );
   }
 
   @ApiBearerAuth()

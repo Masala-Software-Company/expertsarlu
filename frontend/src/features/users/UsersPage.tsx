@@ -38,7 +38,7 @@ export function UsersPage() {
     nom: '',
     email: '',
     password: '',
-    role: 'ASSISTANT_MANAGER',
+    role: '' as string,
   });
   const [edit, setEdit] = useState({ nom: '', role: '', password: '' });
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -53,6 +53,18 @@ export function UsersPage() {
     () => members.find((m) => m.id === selectedId) ?? null,
     [members, selectedId],
   );
+
+  const rolesDisponiblesCreate = useMemo(() => {
+    const taken = new Set(members.filter((m) => m.actif).map((m) => m.role));
+    return ROLES.filter((r) => !taken.has(r));
+  }, [members]);
+
+  const rolesDisponiblesEdit = useMemo(() => {
+    const taken = new Set(
+      members.filter((m) => m.actif && m.id !== selectedId).map((m) => m.role),
+    );
+    return ROLES.filter((r) => !taken.has(r) || r === edit.role);
+  }, [members, selectedId, edit.role]);
 
   // Ne dépend que de selectedId : un refetch (ex. après photo) ne doit pas
   // écraser le nom / rôle en cours de saisie.
@@ -96,7 +108,7 @@ export function UsersPage() {
     mutationFn: async () => (await api.post('/users', form)).data as Member,
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ['users'] });
-      setForm({ nom: '', email: '', password: '', role: 'ASSISTANT_MANAGER' });
+      setForm({ nom: '', email: '', password: '', role: '' });
       setShowCreate(false);
       toast.success('Membre ajouté');
     },
@@ -193,7 +205,26 @@ export function UsersPage() {
             Gérez les collaborateurs eXpert, leurs rôles et leurs profils.
           </p>
         </div>
-        <Button onClick={() => setShowCreate(true)}>
+        <Button
+          onClick={() => {
+            const first = ROLES.find(
+              (r) => !members.some((m) => m.actif && m.role === r),
+            );
+            setForm({
+              nom: '',
+              email: '',
+              password: '',
+              role: first ?? '',
+            });
+            setShowCreate(true);
+          }}
+          disabled={rolesDisponiblesCreate.length === 0}
+          title={
+            rolesDisponiblesCreate.length === 0
+              ? 'Tous les postes sont déjà pourvus'
+              : undefined
+          }
+        >
           <Plus className="h-4 w-4" /> Ajouter un membre
         </Button>
       </div>
@@ -272,24 +303,36 @@ export function UsersPage() {
                 onChange={(e) => setForm({ ...form, password: e.target.value })}
               />
             </Field>
-            <Field label="Rôle">
+            <Field label="Poste / rôle">
               <select
                 className="h-10 w-full rounded-lg border border-[var(--border)] bg-surface px-3 text-sm text-ink"
                 value={form.role}
+                required
                 onChange={(e) => setForm({ ...form, role: e.target.value })}
               >
-                {ROLES.map((r) => (
-                  <option key={r} value={r}>
-                    {ROLE_LABELS[r]}
-                  </option>
-                ))}
+                {rolesDisponiblesCreate.length === 0 ? (
+                  <option value="">Aucun poste disponible</option>
+                ) : (
+                  rolesDisponiblesCreate.map((r) => (
+                    <option key={r} value={r}>
+                      {ROLE_LABELS[r]}
+                    </option>
+                  ))
+                )}
               </select>
+              <p className="mt-1 text-xs text-muted">
+                Chaque poste ne peut être attribué qu’à un seul membre actif.
+              </p>
             </Field>
             <div className="flex gap-2 pt-2">
               <Button type="button" variant="secondary" className="flex-1" onClick={() => setShowCreate(false)}>
                 Annuler
               </Button>
-              <Button type="submit" className="flex-1" disabled={create.isPending}>
+              <Button
+                type="submit"
+                className="flex-1"
+                disabled={create.isPending || !form.role || rolesDisponiblesCreate.length === 0}
+              >
                 Créer
               </Button>
             </div>
@@ -332,13 +375,13 @@ export function UsersPage() {
             <Field label="E-mail">
               <Input value={selected.email} disabled />
             </Field>
-            <Field label="Rôle">
+            <Field label="Poste / rôle">
               <select
                 className="h-10 w-full rounded-lg border border-[var(--border)] bg-surface px-3 text-sm text-ink"
                 value={edit.role}
                 onChange={(e) => setEdit({ ...edit, role: e.target.value })}
               >
-                {ROLES.map((r) => (
+                {rolesDisponiblesEdit.map((r) => (
                   <option key={r} value={r}>
                     {ROLE_LABELS[r]}
                   </option>

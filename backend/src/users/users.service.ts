@@ -95,6 +95,24 @@ export class UsersService {
     });
   }
 
+  /** Un seul collaborateur actif par poste / rôle. */
+  private async assertRoleAvailable(role: RoleName, exceptUserId?: string) {
+    const occupant = await this.prisma.user.findFirst({
+      where: {
+        role,
+        actif: true,
+        ...(exceptUserId ? { id: { not: exceptUserId } } : {}),
+      },
+      select: { id: true, nom: true },
+    });
+    if (occupant) {
+      const label = ROLE_ACCESS[role]?.label ?? role;
+      throw new ConflictException(
+        `Le poste « ${label} » est déjà occupé par ${occupant.nom}. Choisissez un autre rôle ou désactivez le membre actuel.`,
+      );
+    }
+  }
+
   async getById(id: string) {
     const user = await this.prisma.user.findUnique({
       where: { id },
@@ -116,6 +134,8 @@ export class UsersService {
     if (existing) {
       throw new ConflictException('Un compte avec cet e-mail existe déjà');
     }
+
+    await this.assertRoleAvailable(data.role);
 
     const hashPassword = await argon2.hash(data.password);
     return this.prisma.user.create({
@@ -154,6 +174,10 @@ export class UsersService {
       if (count <= 1) {
         throw new BadRequestException('Impossible de retirer le dernier Super Admin');
       }
+    }
+
+    if (data.role && data.role !== target.role) {
+      await this.assertRoleAvailable(data.role, id);
     }
 
     if (isSelf && data.role && data.role !== 'SUPER_ADMIN' && actor.role === 'SUPER_ADMIN') {

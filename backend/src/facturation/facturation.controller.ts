@@ -105,6 +105,15 @@ export class FacturationController {
     return this.facturation.creerDevis(dossierId, user);
   }
 
+  @Post('facture-auto/:dossierId')
+  @RequirePermission({ module: 'facturation', action: 'create' })
+  factureAuto(
+    @Param('dossierId') dossierId: string,
+    @CurrentUser() user: AuthUser,
+  ) {
+    return this.facturation.creerFactureDepuisCotation(dossierId, user);
+  }
+
   @Get('dossier/:dossierId')
   @RequirePermission({ module: 'facturation', action: 'read' })
   list(@Param('dossierId') dossierId: string) {

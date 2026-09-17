@@ -340,6 +340,8 @@ model PreInscription {
   numeroPasseport      String?              @map("numero_passeport")
   numeroNational       String?              @map("numero_national")
   photoChemin          String?              @map("photo_chemin")
+  passeportChemin      String?              @map("passeport_chemin")
+  documentMedicalChemin String?             @map("document_medical_chemin")
   donnees              Json
   dossierId            String?              @unique @map("dossier_id")
   traiteParId          String?              @map("traite_par_id")

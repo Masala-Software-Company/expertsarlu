@@ -168,24 +168,42 @@ export class PreInscriptionsService {
 
   async soumettrePublic(
     payload: PreInscriptionPayload,
-    file: Express.Multer.File | undefined,
+    files: {
+      photo?: Express.Multer.File;
+      passeport?: Express.Multer.File;
+      documentMedical?: Express.Multer.File;
+    },
     meta: { ip?: string; userAgent?: string },
   ) {
     this.validatePayload(payload);
 
-    if (!file?.buffer?.length) {
+    const photo = files.photo;
+    const passeport = files.passeport;
+    const documentMedical = files.documentMedical;
+
+    if (!photo?.buffer?.length) {
       throw new BadRequestException('La photo de profil est obligatoire');
     }
-    if (!ALLOWED_MIME.has(file.mimetype)) {
+    if (!ALLOWED_MIME.has(photo.mimetype)) {
       throw new BadRequestException('Formats photo acceptés : JPG, JPEG, PNG');
     }
-    if (file.size > MAX_PHOTO_BYTES) {
+    if (photo.size > MAX_PHOTO_BYTES) {
       throw new BadRequestException('La photo ne doit pas dépasser 5 Mo');
     }
+    if (!passeport?.buffer?.length) {
+      throw new BadRequestException('Le scan / photo du passeport est obligatoire');
+    }
+    if (passeport.size > 10 * 1024 * 1024) {
+      throw new BadRequestException('Le passeport ne doit pas dépasser 10 Mo');
+    }
+    if (documentMedical && documentMedical.size > 10 * 1024 * 1024) {
+      throw new BadRequestException('Le document médical ne doit pas dépasser 10 Mo');
+    }
+
+    await this.assertPasDeDoubleEnregistrement(payload);
 
     let partenaireId = payload.partenaireId ?? null;
     if (payload.categorie === 'INSTITUTION' && !partenaireId && payload.institution?.nom) {
-      // Ne crée pas l’institution automatiquement — stocke la saisie pour validation staff
       partenaireId = null;
     }
     if (partenaireId) {
@@ -195,13 +213,27 @@ export class PreInscriptionsService {
       if (!p) throw new BadRequestException('Institution introuvable ou inactive');
     }
 
-    const ext = file.mimetype.includes('png') ? 'png' : 'jpg';
+    const photoExt = photo.mimetype.includes('png') ? 'png' : 'jpg';
     const photoChemin = await this.storage.put(
       'pre-inscriptions',
-      `photo.${ext}`,
-      file.buffer,
-      file.mimetype,
+      `photo.${photoExt}`,
+      photo.buffer,
+      photo.mimetype,
     );
+    const passeportChemin = await this.storage.put(
+      'pre-inscriptions',
+      passeport.originalname || 'passeport.pdf',
+      passeport.buffer,
+      passeport.mimetype || 'application/octet-stream',
+    );
+    const documentMedicalChemin = documentMedical?.buffer?.length
+      ? await this.storage.put(
+          'pre-inscriptions',
+          documentMedical.originalname || 'document-medical.pdf',
+          documentMedical.buffer,
+          documentMedical.mimetype || 'application/octet-stream',
+        )
+      : null;
 
     const reference = await this.nextReference();
     const created = await this.prisma.preInscription.create({
@@ -227,6 +259,8 @@ export class PreInscriptionsService {
           payload.identite.numeroNational?.trim() ||
           null,
         photoChemin,
+        passeportChemin,
+        documentMedicalChemin,
         donnees: payload as never,
         ipSoumission: meta.ip,
         userAgent: meta.userAgent,
@@ -381,6 +415,90 @@ export class PreInscriptionsService {
     });
   }
 
+  private digitsPhone(raw?: string | null) {
+    return (raw ?? '').replace(/\D/g, '');
+  }
+
+  /** Empêche un second pré-enregistrement / patient avec les mêmes identifiants. */
+  private async assertPasDeDoubleEnregistrement(payload: PreInscriptionPayload) {
+    const email = payload.coordonnees.email.trim().toLowerCase();
+    const telephone = payload.coordonnees.telephone.trim();
+    const phoneDigits = this.digitsPhone(telephone);
+    const passeport = payload.documentVoyage.numero.trim();
+    const piece =
+      payload.identite.numeroPieceIdentite?.trim() ||
+      payload.identite.numeroNational?.trim() ||
+      '';
+
+    const preOr: Prisma.PreInscriptionWhereInput[] = [
+      { email: { equals: email, mode: 'insensitive' } },
+      { numeroPasseport: { equals: passeport, mode: 'insensitive' } },
+    ];
+    if (telephone) preOr.push({ telephone });
+    if (piece) {
+      preOr.push({ numeroNational: { equals: piece, mode: 'insensitive' } });
+    }
+
+    const existingPre = await this.prisma.preInscription.findFirst({
+      where: {
+        statut: { not: 'REJETE' },
+        OR: preOr,
+      },
+      select: { reference: true, statut: true, email: true, numeroPasseport: true },
+    });
+    if (existingPre) {
+      throw new ConflictException(
+        `Une demande existe déjà pour ces informations (réf. ${existingPre.reference}). Vous ne pouvez pas vous enregistrer une seconde fois.`,
+      );
+    }
+
+    const patientOr: Prisma.PatientWhereInput[] = [
+      { email: { equals: email, mode: 'insensitive' } },
+      { numeroPasseport: { equals: passeport, mode: 'insensitive' } },
+    ];
+    if (telephone) patientOr.push({ telephone });
+    if (piece) {
+      patientOr.push({ numeroNational: { equals: piece, mode: 'insensitive' } });
+    }
+
+    const patients = await this.prisma.patient.findMany({
+      where: { OR: patientOr },
+      take: 20,
+      select: {
+        email: true,
+        telephone: true,
+        numeroPasseport: true,
+        numeroNational: true,
+        dossier: { select: { numero: true } },
+      },
+    });
+
+    const match = patients.find((p) => {
+      if (p.email?.toLowerCase() === email) return true;
+      if (
+        p.numeroPasseport &&
+        p.numeroPasseport.toLowerCase() === passeport.toLowerCase()
+      ) {
+        return true;
+      }
+      if (piece && p.numeroNational?.toLowerCase() === piece.toLowerCase()) {
+        return true;
+      }
+      if (phoneDigits && this.digitsPhone(p.telephone) === phoneDigits) {
+        return true;
+      }
+      return false;
+    });
+
+    if (match) {
+      throw new ConflictException(
+        match.dossier?.numero
+          ? `Ce patient est déjà enregistré (dossier ${match.dossier.numero}). Contactez eXpert SARLU plutôt que de soumettre une nouvelle demande.`
+          : 'Ce patient est déjà enregistré. Contactez eXpert SARLU plutôt que de soumettre une nouvelle demande.',
+      );
+    }
+  }
+
   async detectDoublons(id: string) {
     const row = await this.getOne(id);
     const or: Prisma.PatientWhereInput[] = [];
@@ -501,10 +619,39 @@ export class PreInscriptionsService {
       data: {
         partenaireId: partenaireId ?? null,
         photoProfil: row.photoChemin,
+        documentIdentite: row.passeportChemin ?? undefined,
         numeroNational: row.numeroNational,
         donneesComplementaires: donnees as never,
       },
     });
+
+    // Transférer passeport + document médical vers l’onglet Documents (GED)
+    if (row.passeportChemin) {
+      await this.prisma.documentGED.create({
+        data: {
+          dossierId: dossier.id,
+          categorie: 'IDENTITE',
+          nomFichier: 'passeport-pre-inscription',
+          cheminStockage: row.passeportChemin,
+          mimeType: 'application/octet-stream',
+          tailleOctets: 0,
+          uploadeParId: user.id,
+        },
+      });
+    }
+    if (row.documentMedicalChemin) {
+      await this.prisma.documentGED.create({
+        data: {
+          dossierId: dossier.id,
+          categorie: 'MEDICAL',
+          nomFichier: 'document-medical-pre-inscription',
+          cheminStockage: row.documentMedicalChemin,
+          mimeType: 'application/octet-stream',
+          tailleOctets: 0,
+          uploadeParId: user.id,
+        },
+      });
+    }
 
     await this.prisma.preInscription.update({
       where: { id },

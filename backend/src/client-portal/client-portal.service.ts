@@ -53,7 +53,11 @@ export class ClientPortalService {
 
   async inscrire(
     dto: InscriptionInput,
-    files: { photo?: Express.Multer.File; passeport?: Express.Multer.File },
+    files: {
+      photo?: Express.Multer.File;
+      passeport?: Express.Multer.File;
+      documentMedical?: Express.Multer.File;
+    },
   ) {
     const systemUser =
       (await this.prisma.user.findFirst({
@@ -68,6 +72,7 @@ export class ClientPortalService {
 
     const photoProfil = await this.saveFile('photos', files.photo);
     const passeportPath = await this.saveFile('passeports', files.passeport);
+    const medicalPath = await this.saveFile('medical', files.documentMedical);
     const numero = await this.nextNumero();
 
     const dossier = await this.prisma.dossier.create({
@@ -109,6 +114,20 @@ export class ClientPortalService {
           cheminStockage: passeportPath,
           mimeType: files.passeport?.mimetype ?? 'application/octet-stream',
           tailleOctets: files.passeport?.size ?? 0,
+          uploadeParId: systemUser.id,
+        },
+      });
+    }
+
+    if (medicalPath) {
+      await this.prisma.documentGED.create({
+        data: {
+          dossierId: dossier.id,
+          categorie: 'MEDICAL',
+          nomFichier: files.documentMedical?.originalname ?? 'document-medical',
+          cheminStockage: medicalPath,
+          mimeType: files.documentMedical?.mimetype ?? 'application/octet-stream',
+          tailleOctets: files.documentMedical?.size ?? 0,
           uploadeParId: systemUser.id,
         },
       });

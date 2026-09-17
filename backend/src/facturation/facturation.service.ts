@@ -79,25 +79,44 @@ export class FacturationService {
   }
 
   async creerDevis(dossierId: string, user: AuthUser) {
+    return this.creerDepuisCotation(dossierId, user, 'DEVIS');
+  }
+
+  /** Facture générée automatiquement depuis la cotation (même logique que le devis). */
+  async creerFactureDepuisCotation(dossierId: string, user: AuthUser) {
+    return this.creerDepuisCotation(dossierId, user, 'FACTURE');
+  }
+
+  private async creerDepuisCotation(
+    dossierId: string,
+    user: AuthUser,
+    type: 'DEVIS' | 'FACTURE',
+  ) {
     const resume = await this.cotation.resume(dossierId);
     const dossier = await this.prisma.dossier.findUnique({
       where: { id: dossierId },
       include: { patient: true },
     });
     if (!dossier) throw new NotFoundException('Dossier introuvable');
+    if (!resume.lignes?.length) {
+      throw new BadRequestException(
+        'Ajoutez des lignes de cotation avant de générer ce document',
+      );
+    }
 
     const year = new Date().getFullYear();
     const count = await this.prisma.facture.count({
-      where: { type: 'DEVIS', creeLe: { gte: new Date(`${year}-01-01`) } },
+      where: { type, creeLe: { gte: new Date(`${year}-01-01`) } },
     });
-    const numero = `DEV-${year}-${String(count + 1).padStart(4, '0')}`;
-    const signatureToken = randomUUID();
+    const prefix = type === 'FACTURE' ? 'FAC' : 'DEV';
+    const numero = `${prefix}-${year}-${String(count + 1).padStart(4, '0')}`;
+    const signatureToken = type === 'DEVIS' ? randomUUID() : undefined;
 
     const facture = await this.prisma.facture.create({
       data: {
         numero,
         dossierId,
-        type: 'DEVIS',
+        type,
         statut: 'ENVOYE',
         montantTotal: resume.total,
         genereParId: user.id,
@@ -106,7 +125,7 @@ export class FacturationService {
     });
 
     return this.attachPdf(facture.id, {
-      titre: 'DEVIS',
+      titre: type,
       numero,
       patient: dossier.patient
         ? `${dossier.patient.prenom} ${dossier.patient.nom}`
@@ -121,7 +140,10 @@ export class FacturationService {
       })),
       total: Number(resume.total),
       paye: 0,
-      note: `Lien de signature : /api/facturation/signer/${signatureToken}`,
+      note:
+        type === 'DEVIS' && signatureToken
+          ? `Lien de signature : /api/facturation/signer/${signatureToken}`
+          : 'Facture générée automatiquement depuis la cotation',
     });
   }
 

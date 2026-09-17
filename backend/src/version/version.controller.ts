@@ -25,6 +25,18 @@ export class VersionController {
     ).replace(/\/$/, '');
   }
 
+  private isNewer(remote: string, local: string) {
+    const a = remote.replace(/^v/, '').split('.').map(Number);
+    const b = local.replace(/^v/, '').split('.').map(Number);
+    for (let i = 0; i < Math.max(a.length, b.length); i++) {
+      const x = a[i] ?? 0;
+      const y = b[i] ?? 0;
+      if (x > y) return true;
+      if (x < y) return false;
+    }
+    return false;
+  }
+
   @Public()
   @Get('latest')
   async latest() {
@@ -34,21 +46,58 @@ export class VersionController {
     });
 
     const api = this.publicApiBase();
-    const downloadUrlMac =
-      row?.downloadUrlMac ||
-      this.config.get<string>('DOWNLOAD_MAC_URL') ||
-      `${api}/version/download/mac`;
+    const stableMac = `${api}/version/download/mac`;
+    const stableWin = `${api}/version/download/win`;
 
-    const downloadUrlWin =
-      row?.downloadUrlWin ||
-      this.config.get<string>('DOWNLOAD_WIN_URL') ||
-      `${api}/version/download/win`;
+    // Toujours exposer les proxies API stables (évite les liens S3 signés expirés
+    // stockés en base ou dans les variables d’environnement Railway).
+    const downloadUrlMac = stableMac;
+    const downloadUrlWin = stableWin;
 
     const pageUrl =
       row?.driveUrl || this.config.get('DRIVE_DOWNLOAD_URL') || undefined;
 
+    const configVersion = this.config.get<string>('APP_VERSION', '1.0.3') ?? '1.0.3';
+    const dbVersion = row?.version ?? '0.0.0';
+    const version = this.isNewer(configVersion, dbVersion) ? configVersion : dbVersion;
+
+    // Synchronise la table si la version config est plus récente (ex. après deploy)
+    if (this.isNewer(configVersion, dbVersion)) {
+      await this.prisma.appVersion.updateMany({ data: { actif: false } });
+      await this.prisma.appVersion.upsert({
+        where: { version: configVersion },
+        create: {
+          version: configVersion,
+          changelog:
+            'Correctifs mises à jour installateurs, factures manuelles/auto, documents passeport & médical.',
+          downloadUrlMac: stableMac,
+          downloadUrlWin: stableWin,
+          driveUrl: pageUrl,
+          actif: true,
+        },
+        update: {
+          actif: true,
+          downloadUrlMac: stableMac,
+          downloadUrlWin: stableWin,
+          changelog:
+            'Correctifs mises à jour installateurs, factures manuelles/auto, documents passeport & médical.',
+        },
+      });
+    } else if (row) {
+      // Nettoie les URLs signées obsolètes en base
+      if (
+        row.downloadUrlMac !== stableMac ||
+        row.downloadUrlWin !== stableWin
+      ) {
+        await this.prisma.appVersion.update({
+          where: { id: row.id },
+          data: { downloadUrlMac: stableMac, downloadUrlWin: stableWin },
+        });
+      }
+    }
+
     return {
-      version: row?.version ?? this.config.get('APP_VERSION', '1.0.0'),
+      version,
       changelog:
         row?.changelog ??
         'Nouvelle version eXpert disponible. Cliquez sur Mettre à jour.',
@@ -61,10 +110,26 @@ export class VersionController {
     };
   }
 
+  /** Ignore les URLs S3 signées / temporaires — préférer le proxy API stable. */
+  private pickStableUrl(url?: string | null) {
+    if (!url?.trim()) return undefined;
+    const u = url.trim();
+    if (
+      u.includes('X-Amz-') ||
+      u.includes('Signature=') ||
+      u.includes('storageapi.dev') ||
+      u.includes('amazonaws.com')
+    ) {
+      return undefined;
+    }
+    return u;
+  }
+
   @Public()
   @Get('download/mac')
   async downloadMac(@Res({ passthrough: true }) res: Response) {
-    const external = this.config.get<string>('DOWNLOAD_MAC_URL');
+    // Ne jamais rediriger vers une URL S3 signée / expirée
+    const external = this.pickStableUrl(this.config.get<string>('DOWNLOAD_MAC_URL'));
     if (external) {
       res.redirect(302, external);
       return;
@@ -75,7 +140,7 @@ export class VersionController {
   @Public()
   @Get('download/win')
   async downloadWin(@Res({ passthrough: true }) res: Response) {
-    const external = this.config.get<string>('DOWNLOAD_WIN_URL');
+    const external = this.pickStableUrl(this.config.get<string>('DOWNLOAD_WIN_URL'));
     if (external) {
       res.redirect(302, external);
       return;

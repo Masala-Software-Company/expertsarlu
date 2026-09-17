@@ -26,6 +26,7 @@ export function ClientPortalPage() {
   });
   const [photo, setPhoto] = useState<File | null>(null);
   const [passeport, setPasseport] = useState<File | null>(null);
+  const [documentMedical, setDocumentMedical] = useState<File | null>(null);
 
   const onSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -37,6 +38,7 @@ export function ClientPortalPage() {
       });
       if (photo) fd.append('photo', photo);
       if (passeport) fd.append('passeport', passeport);
+      if (documentMedical) fd.append('documentMedical', documentMedical);
 
       const { data } = await axios.post(`${apiBase}/client/inscription`, fd);
       setDone({ numero: data.numero, message: data.message });
@@ -170,11 +172,20 @@ export function ClientPortalPage() {
             />
           </label>
           <label className="block space-y-1 text-sm">
-            <span className="text-muted">Scan passeport (KYC)</span>
+            <span className="text-muted">Scan passeport (KYC) *</span>
             <Input
               type="file"
               accept="image/*,.pdf"
+              required
               onChange={(e) => setPasseport(e.target.files?.[0] ?? null)}
+            />
+          </label>
+          <label className="block space-y-1 text-sm">
+            <span className="text-muted">Document médical (optionnel)</span>
+            <Input
+              type="file"
+              accept="image/*,.pdf"
+              onChange={(e) => setDocumentMedical(e.target.files?.[0] ?? null)}
             />
           </label>
         </section>

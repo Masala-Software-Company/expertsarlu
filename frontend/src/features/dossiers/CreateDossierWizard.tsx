@@ -59,12 +59,19 @@ export function CreateDossierWizard({
   loading,
 }: {
   onClose: () => void;
-  onSubmit: (p: { data: Record<string, unknown>; photo?: File | null }) => void;
+  onSubmit: (p: {
+    data: Record<string, unknown>;
+    photo?: File | null;
+    passeport?: File | null;
+    documentMedical?: File | null;
+  }) => void;
   loading: boolean;
 }) {
   const [step, setStep] = useState<Step>('profil');
   const [form, setForm] = useState(empty);
   const [photo, setPhoto] = useState<File | null>(null);
+  const [passeport, setPasseport] = useState<File | null>(null);
+  const [documentMedical, setDocumentMedical] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const [partenaires, setPartenaires] = useState<{ id: string; nom: string }[]>([]);
   const [partenaireId, setPartenaireId] = useState('');
@@ -92,8 +99,9 @@ export function CreateDossierWizard({
     if (step === 'profil') return !!form.typeClient;
     if (step === 'identite') return !!form.nom.trim() && !!form.prenom.trim();
     if (step === 'coordonnees') return !!form.email.trim() && !!form.telephone.trim();
+    if (step === 'voyage') return !!passeport;
     return true;
-  }, [form, step]);
+  }, [form, step, passeport]);
 
   const buildPayload = () => {
     const accompagnateurs =
@@ -227,7 +235,35 @@ export function CreateDossierWizard({
 
           {step === 'voyage' && (
             <div className="space-y-3">
-              <Input placeholder="N° passeport / document de voyage" value={form.numeroPasseport} onChange={(e) => setForm({ ...form, numeroPasseport: e.target.value })} />
+              <Input
+                placeholder="N° passeport / document de voyage"
+                value={form.numeroPasseport}
+                onChange={(e) => setForm({ ...form, numeroPasseport: e.target.value })}
+              />
+              <label className="flex cursor-pointer flex-col gap-1 rounded-xl border border-dashed border-[var(--border)] bg-canvas px-4 py-3">
+                <span className="text-sm font-semibold">Passeport (scan / photo) *</span>
+                <span className="text-xs text-muted">
+                  {passeport ? passeport.name : 'PDF, JPG ou PNG — max. 10 Mo'}
+                </span>
+                <input
+                  type="file"
+                  accept="image/*,.pdf,application/pdf"
+                  className="hidden"
+                  onChange={(e) => setPasseport(e.target.files?.[0] ?? null)}
+                />
+              </label>
+              <label className="flex cursor-pointer flex-col gap-1 rounded-xl border border-dashed border-[var(--border)] bg-canvas px-4 py-3">
+                <span className="text-sm font-semibold">Document médical (optionnel)</span>
+                <span className="text-xs text-muted">
+                  {documentMedical ? documentMedical.name : 'Ordonnance, rapport… — max. 10 Mo'}
+                </span>
+                <input
+                  type="file"
+                  accept="image/*,.pdf,application/pdf"
+                  className="hidden"
+                  onChange={(e) => setDocumentMedical(e.target.files?.[0] ?? null)}
+                />
+              </label>
             </div>
           )}
 
@@ -255,6 +291,8 @@ export function CreateDossierWizard({
                 {form.email} · WhatsApp {form.telephone}
               </p>
               {form.destination && <p>Destination : {form.destination}</p>}
+              <p>Passeport fichier : {passeport ? passeport.name : '—'}</p>
+              <p>Document médical : {documentMedical ? documentMedical.name : 'Aucun'}</p>
               {(form.accompagnateurNom || form.accompagnateurPrenom) && (
                 <p>
                   Accompagnateur : {form.accompagnateurPrenom} {form.accompagnateurNom}
@@ -299,7 +337,14 @@ export function CreateDossierWizard({
               type="button"
               className="flex-1"
               disabled={loading}
-              onClick={() => onSubmit({ data: buildPayload(), photo })}
+              onClick={() => {
+                if (!passeport) {
+                  toast.error('Le scan du passeport est obligatoire');
+                  setStep('voyage');
+                  return;
+                }
+                onSubmit({ data: buildPayload(), photo, passeport, documentMedical });
+              }}
             >
               Créer le dossier
             </Button>

@@ -148,6 +148,7 @@ export class ClientPortalController {
         notes: { type: 'string' },
         photo: { type: 'string', format: 'binary' },
         passeport: { type: 'string', format: 'binary' },
+        documentMedical: { type: 'string', format: 'binary' },
       },
       required: ['nom', 'prenom'],
     },
@@ -156,12 +157,17 @@ export class ClientPortalController {
     FileFieldsInterceptor([
       { name: 'photo', maxCount: 1 },
       { name: 'passeport', maxCount: 1 },
+      { name: 'documentMedical', maxCount: 1 },
     ]),
   )
   inscription(
     @Body() dto: ClientInscriptionDto,
     @UploadedFiles()
-    files: { photo?: Express.Multer.File[]; passeport?: Express.Multer.File[] },
+    files: {
+      photo?: Express.Multer.File[];
+      passeport?: Express.Multer.File[];
+      documentMedical?: Express.Multer.File[];
+    },
   ) {
     if (!dto.nom?.trim() || !dto.prenom?.trim()) {
       throw new BadRequestException('Nom et prénom requis');
@@ -169,6 +175,7 @@ export class ClientPortalController {
     return this.portal.inscrire(dto, {
       photo: files?.photo?.[0],
       passeport: files?.passeport?.[0],
+      documentMedical: files?.documentMedical?.[0],
     });
   }
 }

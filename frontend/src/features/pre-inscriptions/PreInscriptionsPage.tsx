@@ -1,17 +1,89 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { Mail, MessageCircle } from 'lucide-react';
+import { Mail, X } from 'lucide-react';
 import { api } from '@/lib/api';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
-import { useAuthStore } from '@/features/auth/auth-store';
+import { WhatsAppIcon } from '@/components/WhatsAppIcon';
 import {
   buildPatientOutreachMessage,
   mailtoPatientUrl,
   whatsappChatUrl,
 } from '@/lib/patient-contact';
+
+type Identite = {
+  nom?: string;
+  nomNaissance?: string;
+  prenom?: string;
+  dateNaissance?: string;
+  lieuNaissance?: string;
+  paysNaissance?: string;
+  nationaliteActuelle?: string;
+  nationaliteNaissance?: string;
+  autresNationalites?: string;
+  sexe?: string;
+  etatCivil?: string;
+  numeroNational?: string;
+  numeroPieceIdentite?: string;
+  statutPatient?: string;
+};
+
+type Coordonnees = {
+  adresse?: string;
+  email?: string;
+  telephone?: string;
+};
+
+type DocumentVoyage = {
+  type?: string;
+  numero?: string;
+  dateDelivrance?: string;
+  dateExpiration?: string;
+  paysDelivrance?: string;
+};
+
+type Professionnel = {
+  profession?: string;
+  employeurNom?: string;
+  employeurAdresse?: string;
+  employeurTelephone?: string;
+};
+
+type Institution = {
+  nom?: string;
+  adresse?: string;
+  telephone?: string;
+  contactNom?: string;
+  contactPrenom?: string;
+  contactTelephone?: string;
+  contactEmail?: string;
+};
+
+type Tuteur = {
+  nom?: string;
+  prenom?: string;
+  adresse?: string;
+  telephone?: string;
+  email?: string;
+  nationalite?: string;
+};
+
+type Donnees = {
+  categorie?: string;
+  identite?: Identite;
+  coordonnees?: Coordonnees;
+  documentVoyage?: DocumentVoyage;
+  professionnel?: Professionnel;
+  institution?: Institution;
+  tuteur?: Tuteur;
+  residenceEtrangere?: {
+    oui?: boolean;
+    numeroAutorisation?: string;
+    expirationAutorisation?: string;
+  };
+};
 
 type PreInscription = {
   id: string;
@@ -27,9 +99,8 @@ type PreInscription = {
   motifRejet?: string | null;
   partenaire?: { id: string; nom: string } | null;
   dossier?: { id: string; numero: string } | null;
-  donnees?: Record<string, unknown>;
-  institutionSaisie?: Record<string, unknown> | null;
-  historique?: { at: string; action: string; detail?: string }[];
+  donnees?: Donnees;
+  institutionSaisie?: Institution | null;
 };
 
 const STATUT_LABELS: Record<string, string> = {
@@ -41,9 +112,54 @@ const STATUT_LABELS: Record<string, string> = {
   DOSSIER_CREE: 'Dossier créé',
 };
 
+const SEXE_LABELS: Record<string, string> = {
+  MASCULIN: 'Masculin',
+  FEMININ: 'Féminin',
+};
+
+const STATUT_PATIENT_LABELS: Record<string, string> = {
+  ADULTE: 'Adulte',
+  ENFANT_SOUS_TUTELLE: 'Enfant sous tutelle',
+  ADULTE_SOUS_TUTELLE: 'Adulte sous tutelle',
+};
+
+function fmtDate(value?: string | null) {
+  if (!value) return '—';
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return value;
+  return d.toLocaleDateString('fr-FR');
+}
+
+function Field({ label, value }: { label: string; value?: string | null }) {
+  return (
+    <div>
+      <div className="text-[11px] font-semibold uppercase tracking-wide text-muted">
+        {label}
+      </div>
+      <div className="mt-0.5 text-sm font-medium text-ink">{value?.trim() || '—'}</div>
+    </div>
+  );
+}
+
+function Section({
+  title,
+  children,
+}: {
+  title: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <section className="space-y-3">
+      <h3 className="border-b border-[var(--border)] pb-1.5 text-xs font-bold uppercase tracking-wide text-brand">
+        {title}
+      </h3>
+      <div className="grid gap-3 sm:grid-cols-2">{children}</div>
+    </section>
+  );
+}
+
 export function PreInscriptionsPage() {
   const qc = useQueryClient();
-  const token = useAuthStore((s) => s.accessToken);
   const [q, setQ] = useState('');
   const [statut, setStatut] = useState('');
   const [categorie, setCategorie] = useState('');
@@ -64,7 +180,7 @@ export function PreInscriptionsPage() {
       ).data,
   });
 
-  const { data: detail } = useQuery({
+  const { data: detail, isLoading: detailLoading } = useQuery({
     queryKey: ['pre-inscription', selectedId],
     queryFn: async () =>
       (await api.get<PreInscription>(`/pre-inscriptions/${selectedId}`)).data,
@@ -115,11 +231,16 @@ export function PreInscriptionsPage() {
       toast.success(`Dossier ${res.dossier.numero} créé`);
       qc.invalidateQueries({ queryKey: ['pre-inscriptions'] });
       qc.invalidateQueries({ queryKey: ['dossiers'] });
+      setSelectedId(null);
     },
     onError: (err: unknown) => {
-      const data = (err as { response?: { data?: { message?: unknown; code?: string } } })
-        ?.response?.data;
-      if (data?.code === 'POSSIBLE_DUPLICATE' || String(data?.message).includes('correspondant')) {
+      const data = (
+        err as { response?: { data?: { message?: unknown; code?: string } } }
+      )?.response?.data;
+      if (
+        data?.code === 'POSSIBLE_DUPLICATE' ||
+        String(data?.message).includes('correspondant')
+      ) {
         toast.error(
           'Un patient correspondant existe peut-être déjà. Vérifiez avant de forcer la création.',
         );
@@ -130,36 +251,33 @@ export function PreInscriptionsPage() {
     },
   });
 
-  const photoUrl = useMemo(() => {
-    if (!selectedId || !token) return null;
-    const base = api.defaults.baseURL?.replace(/\/$/, '') ?? '';
-    return `${base}/pre-inscriptions/${selectedId}/photo`;
-  }, [selectedId, token]);
+  useEffect(() => {
+    if (!selectedId) setMotif('');
+  }, [selectedId]);
+
+  useEffect(() => {
+    if (!selectedId) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setSelectedId(null);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [selectedId]);
+
+  const d = detail?.donnees;
+  const identite = d?.identite;
+  const coords = d?.coordonnees;
+  const doc = d?.documentVoyage;
+  const pro = d?.professionnel;
+  const inst = d?.institution || detail?.institutionSaisie || undefined;
+  const tuteur = d?.tuteur;
 
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-3xl font-extrabold tracking-tight">Nouveaux patients</h1>
         <p className="mt-1 text-muted">
-          Demandes de pré-enregistrement reçues via le portail public — à vérifier avant création
-          du dossier.
-        </p>
-        <p className="mt-2 text-xs text-muted">
-          Formulaire public :{' '}
-          <a
-            href={
-              import.meta.env.VITE_PUBLIC_FORM_BASE_URL ||
-              'https://form.expert-evac.com'
-            }
-            target="_blank"
-            rel="noreferrer"
-            className="font-semibold text-brand hover:underline"
-          >
-            {(
-              import.meta.env.VITE_PUBLIC_FORM_BASE_URL ||
-              'https://form.expert-evac.com'
-            ).replace(/^https?:\/\//, '')}
-          </a>
+          Demandes de pré-enregistrement à vérifier avant création du dossier.
         </p>
       </div>
 
@@ -193,171 +311,318 @@ export function PreInscriptionsPage() {
         </select>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
-        <div className="overflow-hidden rounded-2xl border border-[var(--border)] bg-surface shadow-soft">
-          <table className="w-full text-sm">
-            <thead className="bg-canvas text-left text-xs uppercase tracking-wide text-muted">
-              <tr>
-                <th className="px-4 py-3">Patient</th>
-                <th className="px-4 py-3">Catégorie</th>
-                <th className="px-4 py-3">Type</th>
-                <th className="px-4 py-3">Date</th>
-                <th className="px-4 py-3">Statut</th>
+      <div className="overflow-hidden rounded-2xl border border-[var(--border)] bg-surface shadow-soft">
+        <table className="w-full text-sm">
+          <thead className="bg-canvas text-left text-xs uppercase tracking-wide text-muted">
+            <tr>
+              <th className="px-4 py-3">Patient</th>
+              <th className="px-4 py-3">Catégorie</th>
+              <th className="px-4 py-3">Contact</th>
+              <th className="px-4 py-3">Date</th>
+              <th className="px-4 py-3">Statut</th>
+            </tr>
+          </thead>
+          <tbody>
+            {data.map((row) => (
+              <tr
+                key={row.id}
+                className="border-t border-[var(--border)] hover:bg-brand/[0.04]"
+              >
+                <td className="px-4 py-3">
+                  <button
+                    type="button"
+                    className="text-left font-semibold text-brand hover:underline"
+                    onClick={() => setSelectedId(row.id)}
+                  >
+                    {row.prenom} {row.nom}
+                  </button>
+                  <div className="text-xs text-muted">{row.reference}</div>
+                </td>
+                <td className="px-4 py-3">
+                  {row.categorie === 'PARTICULIER' ? 'Particulier' : 'Institution'}
+                  {row.categorie === 'INSTITUTION' && row.partenaire?.nom ? (
+                    <div className="text-xs text-muted">{row.partenaire.nom}</div>
+                  ) : null}
+                </td>
+                <td className="px-4 py-3">
+                  <div>{row.telephone ?? '—'}</div>
+                  <div className="text-xs text-muted">{row.email ?? ''}</div>
+                </td>
+                <td className="px-4 py-3">
+                  {new Date(row.creeLe).toLocaleDateString('fr-FR')}
+                </td>
+                <td className="px-4 py-3">
+                  <span className="rounded-full bg-brand/10 px-2.5 py-1 text-xs font-semibold text-brand">
+                    {STATUT_LABELS[row.statut] ?? row.statut}
+                  </span>
+                </td>
               </tr>
-            </thead>
-            <tbody>
-              {data.map((row) => (
-                <tr
-                  key={row.id}
-                  onClick={() => setSelectedId(row.id)}
-                  className={`cursor-pointer border-t border-[var(--border)] hover:bg-brand/[0.04] ${
-                    selectedId === row.id ? 'bg-brand/[0.06]' : ''
-                  }`}
-                >
-                  <td className="px-4 py-3">
-                    <div className="font-semibold">
-                      {row.prenom} {row.nom}
-                    </div>
-                    <div className="text-xs text-muted">{row.reference}</div>
-                  </td>
-                  <td className="px-4 py-3">
-                    {row.categorie === 'PARTICULIER' ? 'Particulier' : 'Institution'}
-                  </td>
-                  <td className="px-4 py-3">{row.partenaire?.nom ?? '—'}</td>
-                  <td className="px-4 py-3">
-                    {new Date(row.creeLe).toLocaleDateString('fr-FR')}
-                  </td>
-                  <td className="px-4 py-3">{STATUT_LABELS[row.statut] ?? row.statut}</td>
-                </tr>
-              ))}
-              {!isLoading && data.length === 0 && (
-                <tr>
-                  <td colSpan={5} className="px-4 py-12 text-center text-muted">
-                    Aucune demande pour le moment
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
+            ))}
+            {!isLoading && data.length === 0 && (
+              <tr>
+                <td colSpan={5} className="px-4 py-12 text-center text-muted">
+                  Aucune demande pour le moment
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
 
-        <div className="rounded-2xl border border-[var(--border)] bg-surface p-5 shadow-soft">
-          {!detail ? (
-            <p className="text-sm text-muted">Sélectionnez une demande pour la consulter.</p>
-          ) : (
-            <div className="space-y-4">
-              <div className="flex items-start gap-4">
-                {photoUrl && (
-                  <img
-                    src={photoUrl}
-                    alt=""
-                    className="h-24 w-24 rounded-2xl object-cover"
-                    onError={(e) => {
-                      (e.target as HTMLImageElement).style.display = 'none';
-                    }}
-                    // Auth via cookie not available — use fetch blob with header instead
-                  />
-                )}
-                <div>
-                  <h2 className="text-xl font-bold">
-                    {detail.prenom} {detail.nom}
-                  </h2>
-                  <p className="text-sm text-muted">{detail.reference}</p>
-                  <p className="mt-1 text-sm">
-                    {STATUT_LABELS[detail.statut] ?? detail.statut}
+      {selectedId && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4"
+          onClick={() => setSelectedId(null)}
+          role="presentation"
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            className="flex max-h-[92vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-[var(--border)] bg-surface shadow-soft"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start justify-between gap-4 border-b border-[var(--border)] px-5 py-4">
+              <div>
+                <p className="text-[11px] font-bold uppercase tracking-wide text-muted">
+                  Pré-enregistrement
+                </p>
+                <h2 className="mt-1 text-xl font-extrabold tracking-tight">
+                  {detail ? `${detail.prenom} ${detail.nom}` : 'Chargement…'}
+                </h2>
+                {detail && (
+                  <p className="mt-1 text-sm text-muted">
+                    {detail.reference} · {STATUT_LABELS[detail.statut] ?? detail.statut}
                     {detail.dossier ? (
                       <>
                         {' '}
                         ·{' '}
-                        <Link className="font-semibold text-brand" to={`/dossiers/${detail.dossier.id}`}>
+                        <Link
+                          className="font-semibold text-brand"
+                          to={`/dossiers/${detail.dossier.id}`}
+                        >
                           {detail.dossier.numero}
                         </Link>
                       </>
                     ) : null}
                   </p>
-                </div>
+                )}
               </div>
+              <button
+                type="button"
+                className="rounded-lg p-2 text-muted hover:bg-canvas hover:text-ink"
+                onClick={() => setSelectedId(null)}
+                aria-label="Fermer"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
 
-              <AuthPhoto id={detail.id} />
-
-              {doublons?.risque && (
-                <div className="rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900">
-                  <strong>Attention doublon possible.</strong> {doublons.message}
-                  <ul className="mt-2 list-disc pl-4">
-                    {doublons.correspondances.map((c) => (
-                      <li key={c.id}>
-                        {c.prenom} {c.nom}
-                        {c.dossier ? ` — ${c.dossier.numero}` : ''}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-
-              <DetailBlock title="Coordonnées">
-                <div className="space-y-2">
-                  <p>
-                    {detail.email ?? '—'} · WhatsApp {detail.telephone ?? '—'}
-                  </p>
-                  <div className="flex flex-wrap gap-2">
-                    {(() => {
-                      const msg = buildPatientOutreachMessage({
-                        prenom: detail.prenom,
-                        nom: detail.nom,
-                        numeroDossier: detail.dossier?.numero ?? detail.reference,
-                        statut: detail.statut,
-                      });
-                      const wa = whatsappChatUrl(detail.telephone, msg);
-                      const mail = mailtoPatientUrl(detail.email, {
-                        prenom: detail.prenom,
-                        nom: detail.nom,
-                        numeroDossier: detail.dossier?.numero ?? detail.reference,
-                        statut: detail.statut,
-                      });
-                      return (
-                        <>
-                          {wa ? (
-                            <a
-                              href={wa}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="inline-flex items-center gap-1.5 rounded-lg bg-[#25D366] px-3 py-1.5 text-xs font-semibold text-white"
-                            >
-                              <MessageCircle className="h-3.5 w-3.5" /> WhatsApp
-                            </a>
-                          ) : null}
-                          {mail ? (
-                            <a
-                              href={mail}
-                              className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--border)] px-3 py-1.5 text-xs font-semibold text-brand"
-                            >
-                              <Mail className="h-3.5 w-3.5" /> E-mail
-                            </a>
-                          ) : null}
-                        </>
-                      );
-                    })()}
+            <div className="flex-1 space-y-6 overflow-y-auto px-5 py-5">
+              {detailLoading || !detail ? (
+                <p className="text-sm text-muted">Chargement du dossier…</p>
+              ) : (
+                <>
+                  <div className="flex flex-wrap items-start gap-4">
+                    <AuthPhoto id={detail.id} />
+                    <div className="min-w-0 flex-1 space-y-2">
+                      <div className="flex flex-wrap gap-2">
+                        {(() => {
+                          const msg = buildPatientOutreachMessage({
+                            prenom: detail.prenom,
+                            nom: detail.nom,
+                            numeroDossier:
+                              detail.dossier?.numero ?? detail.reference,
+                            statut: detail.statut,
+                          });
+                          const wa = whatsappChatUrl(detail.telephone, msg);
+                          const mail = mailtoPatientUrl(detail.email, {
+                            prenom: detail.prenom,
+                            nom: detail.nom,
+                            numeroDossier:
+                              detail.dossier?.numero ?? detail.reference,
+                            statut: detail.statut,
+                          });
+                          return (
+                            <>
+                              {wa ? (
+                                <a
+                                  href={wa}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  title="Ouvrir WhatsApp avec message prérempli"
+                                  className="inline-flex h-9 items-center gap-2 rounded-full bg-[#25D366] px-4 text-sm font-semibold text-white shadow-sm transition-ui hover:brightness-110"
+                                >
+                                  <WhatsAppIcon className="h-4 w-4" /> WhatsApp
+                                </a>
+                              ) : null}
+                              {mail ? (
+                                <a
+                                  href={mail}
+                                  className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--border)] px-3 py-1.5 text-xs font-semibold text-brand"
+                                >
+                                  <Mail className="h-3.5 w-3.5" /> E-mail
+                                </a>
+                              ) : null}
+                            </>
+                          );
+                        })()}
+                      </div>
+                      {detail.motifRejet ? (
+                        <p className="rounded-xl bg-amber-50 px-3 py-2 text-sm text-amber-900">
+                          Motif : {detail.motifRejet}
+                        </p>
+                      ) : null}
+                    </div>
                   </div>
-                </div>
-              </DetailBlock>
-              <DetailBlock title="Passeport">{detail.numeroPasseport ?? '—'}</DetailBlock>
-              {detail.partenaire && (
-                <DetailBlock title="Institution">{detail.partenaire.nom}</DetailBlock>
-              )}
-              {detail.institutionSaisie && (
-                <DetailBlock title="Institution saisie">
-                  <pre className="whitespace-pre-wrap text-xs">
-                    {JSON.stringify(detail.institutionSaisie, null, 2)}
-                  </pre>
-                </DetailBlock>
-              )}
-              <DetailBlock title="Données complètes">
-                <pre className="max-h-48 overflow-auto whitespace-pre-wrap text-xs">
-                  {JSON.stringify(detail.donnees, null, 2)}
-                </pre>
-              </DetailBlock>
 
-              <div className="space-y-2 border-t border-[var(--border)] pt-4">
+                  {doublons?.risque && (
+                    <div className="rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+                      <strong>Attention doublon possible.</strong> {doublons.message}
+                      <ul className="mt-2 list-disc pl-4">
+                        {doublons.correspondances.map((c) => (
+                          <li key={c.id}>
+                            {c.prenom} {c.nom}
+                            {c.dossier ? ` — ${c.dossier.numero}` : ''}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  <Section title="Identité">
+                    <Field label="Nom" value={identite?.nom ?? detail.nom} />
+                    <Field label="Prénom" value={identite?.prenom ?? detail.prenom} />
+                    <Field label="Nom de naissance" value={identite?.nomNaissance} />
+                    <Field
+                      label="Sexe"
+                      value={
+                        identite?.sexe
+                          ? SEXE_LABELS[identite.sexe] ?? identite.sexe
+                          : null
+                      }
+                    />
+                    <Field label="Date de naissance" value={fmtDate(identite?.dateNaissance)} />
+                    <Field label="Lieu de naissance" value={identite?.lieuNaissance} />
+                    <Field label="Pays de naissance" value={identite?.paysNaissance} />
+                    <Field label="État civil" value={identite?.etatCivil} />
+                    <Field
+                      label="Nationalité"
+                      value={identite?.nationaliteActuelle}
+                    />
+                    <Field
+                      label="Nationalité de naissance"
+                      value={identite?.nationaliteNaissance}
+                    />
+                    <Field
+                      label="Autres nationalités"
+                      value={identite?.autresNationalites}
+                    />
+                    <Field
+                      label="Statut patient"
+                      value={
+                        identite?.statutPatient
+                          ? STATUT_PATIENT_LABELS[identite.statutPatient] ??
+                            identite.statutPatient
+                          : null
+                      }
+                    />
+                    <Field label="N° national" value={identite?.numeroNational} />
+                    <Field
+                      label="N° pièce d’identité"
+                      value={identite?.numeroPieceIdentite}
+                    />
+                  </Section>
+
+                  <Section title="Coordonnées">
+                    <Field label="E-mail" value={coords?.email ?? detail.email} />
+                    <Field
+                      label="Téléphone / WhatsApp"
+                      value={coords?.telephone ?? detail.telephone}
+                    />
+                    <div className="sm:col-span-2">
+                      <Field label="Adresse" value={coords?.adresse} />
+                    </div>
+                  </Section>
+
+                  <Section title="Document de voyage">
+                    <Field label="Type" value={doc?.type} />
+                    <Field
+                      label="Numéro"
+                      value={doc?.numero ?? detail.numeroPasseport}
+                    />
+                    <Field label="Délivrance" value={fmtDate(doc?.dateDelivrance)} />
+                    <Field label="Expiration" value={fmtDate(doc?.dateExpiration)} />
+                    <Field label="Pays de délivrance" value={doc?.paysDelivrance} />
+                  </Section>
+
+                  {(pro?.profession ||
+                    pro?.employeurNom ||
+                    pro?.employeurAdresse ||
+                    pro?.employeurTelephone) && (
+                    <Section title="Profession">
+                      <Field label="Profession" value={pro?.profession} />
+                      <Field label="Employeur" value={pro?.employeurNom} />
+                      <Field label="Adresse employeur" value={pro?.employeurAdresse} />
+                      <Field
+                        label="Téléphone employeur"
+                        value={pro?.employeurTelephone}
+                      />
+                    </Section>
+                  )}
+
+                  {(inst?.nom || detail.partenaire) && (
+                    <Section title="Institution">
+                      <Field
+                        label="Nom"
+                        value={detail.partenaire?.nom ?? inst?.nom}
+                      />
+                      <Field label="Adresse" value={inst?.adresse} />
+                      <Field label="Téléphone" value={inst?.telephone} />
+                      <Field
+                        label="Contact"
+                        value={
+                          [inst?.contactPrenom, inst?.contactNom]
+                            .filter(Boolean)
+                            .join(' ') || null
+                        }
+                      />
+                      <Field label="E-mail contact" value={inst?.contactEmail} />
+                      <Field
+                        label="Téléphone contact"
+                        value={inst?.contactTelephone}
+                      />
+                    </Section>
+                  )}
+
+                  {tuteur && (tuteur.nom || tuteur.prenom) && (
+                    <Section title="Tuteur">
+                      <Field label="Nom" value={tuteur.nom} />
+                      <Field label="Prénom" value={tuteur.prenom} />
+                      <Field label="Nationalité" value={tuteur.nationalite} />
+                      <Field label="Téléphone" value={tuteur.telephone} />
+                      <Field label="E-mail" value={tuteur.email} />
+                      <Field label="Adresse" value={tuteur.adresse} />
+                    </Section>
+                  )}
+
+                  {d?.residenceEtrangere?.oui && (
+                    <Section title="Résidence à l’étranger">
+                      <Field
+                        label="N° autorisation"
+                        value={d.residenceEtrangere.numeroAutorisation}
+                      />
+                      <Field
+                        label="Expiration"
+                        value={fmtDate(d.residenceEtrangere.expirationAutorisation)}
+                      />
+                    </Section>
+                  )}
+                </>
+              )}
+            </div>
+
+            {detail && (
+              <div className="space-y-3 border-t border-[var(--border)] bg-canvas/60 px-5 py-4">
                 <Input
                   placeholder="Motif (rejet / infos incomplètes)"
                   value={motif}
@@ -392,53 +657,44 @@ export function PreInscriptionsPage() {
                   >
                     Rejeter
                   </Button>
-                </div>
-                {detail.statut !== 'DOSSIER_CREE' && (
-                  <div className="flex flex-wrap gap-2 pt-2">
+                  {detail.statut !== 'DOSSIER_CREE' && (
                     <Button type="button" onClick={() => creer.mutate(false)}>
                       Créer le dossier patient
                     </Button>
-                    {doublons?.risque && (
-                      <Button
-                        type="button"
-                        variant="secondary"
-                        onClick={() => {
-                          if (
-                            confirm(
-                              'Forcer la création malgré un risque de doublon ?',
-                            )
-                          ) {
-                            creer.mutate(true);
-                          }
-                        }}
-                      >
-                        Forcer malgré doublon
-                      </Button>
-                    )}
-                  </div>
-                )}
+                  )}
+                  {detail.statut !== 'DOSSIER_CREE' && doublons?.risque && (
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      onClick={() => {
+                        if (
+                          confirm(
+                            'Forcer la création malgré un risque de doublon ?',
+                          )
+                        ) {
+                          creer.mutate(true);
+                        }
+                      }}
+                    >
+                      Forcer malgré doublon
+                    </Button>
+                  )}
+                </div>
               </div>
-            </div>
-          )}
+            )}
+          </div>
         </div>
-      </div>
-    </div>
-  );
-}
-
-function DetailBlock({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <div>
-      <div className="text-xs font-semibold uppercase tracking-wide text-muted">{title}</div>
-      <div className="mt-1 text-sm">{children}</div>
+      )}
     </div>
   );
 }
 
 function AuthPhoto({ id }: { id: string }) {
   const [src, setSrc] = useState<string | null>(null);
-  useMemo(() => {
+
+  useEffect(() => {
     let revoke: string | null = null;
+    let cancelled = false;
     (async () => {
       try {
         const res = await api.get(`/pre-inscriptions/${id}/photo`, {
@@ -446,16 +702,29 @@ function AuthPhoto({ id }: { id: string }) {
         });
         const url = URL.createObjectURL(res.data);
         revoke = url;
-        setSrc(url);
+        if (!cancelled) setSrc(url);
       } catch {
-        setSrc(null);
+        if (!cancelled) setSrc(null);
       }
     })();
     return () => {
+      cancelled = true;
       if (revoke) URL.revokeObjectURL(revoke);
     };
   }, [id]);
 
-  if (!src) return null;
-  return <img src={src} alt="Photo patient" className="h-40 w-40 rounded-2xl object-cover" />;
+  if (!src) {
+    return (
+      <div className="flex h-28 w-28 items-center justify-center rounded-2xl bg-canvas text-xs text-muted">
+        Pas de photo
+      </div>
+    );
+  }
+  return (
+    <img
+      src={src}
+      alt="Photo patient"
+      className="h-28 w-28 rounded-2xl object-cover"
+    />
+  );
 }

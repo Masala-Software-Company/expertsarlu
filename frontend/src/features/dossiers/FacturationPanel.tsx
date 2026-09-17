@@ -58,12 +58,9 @@ export function FacturationPanel({
   const [createOpen, setCreateOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<Facture | null>(null);
   const [deleteMotif, setDeleteMotif] = useState('');
-  const [manual, setManual] = useState({
-    description: '',
-    code: 'TF-001',
-    montant: '',
-    quantite: '1',
-  });
+  const [manualLignes, setManualLignes] = useState<
+    { code: string; description: string; quantite: string; montant: string }[]
+  >([{ code: 'TF-001', description: '', quantite: '1', montant: '' }]);
 
   const { data: factures = [], isLoading } = useQuery({
     queryKey: ['factures', dossierId],
@@ -86,29 +83,49 @@ export function FacturationPanel({
       toast.error(e.response?.data?.message ?? 'Impossible de créer le devis'),
   });
 
-  const creerManuel = useMutation({
+  const creerFactureAuto = useMutation({
     mutationFn: async () =>
-      (
-        await api.post(`/facturation/manuel/${dossierId}`, {
-          type: 'FACTURE',
-          lignes: [
-            {
-              code: manual.code || 'TF-001',
-              description: manual.description,
-              quantite: Number(manual.quantite) || 1,
-              montant: Number(manual.montant),
-            },
-          ],
-        })
-      ).data as Facture,
+      (await api.post(`/facturation/facture-auto/${dossierId}`)).data as Facture,
     onSuccess: (f) => {
       void qc.invalidateQueries({ queryKey: ['factures', dossierId] });
-      setCreateOpen(false);
-      toast.success('Facture créée');
+      toast.success('Facture générée depuis la cotation');
       void openPreview(f);
     },
     onError: (e: { response?: { data?: { message?: string } } }) =>
-      toast.error(e.response?.data?.message ?? 'Création impossible — redéployez l’API si besoin'),
+      toast.error(e.response?.data?.message ?? 'Impossible de générer la facture'),
+  });
+
+  const creerManuel = useMutation({
+    mutationFn: async () => {
+      const lignes = manualLignes
+        .filter((l) => l.description.trim() && Number(l.montant) > 0)
+        .map((l) => ({
+          code: l.code || 'TF-001',
+          description: l.description.trim(),
+          quantite: Number(l.quantite) || 1,
+          montant: Number(l.montant),
+        }));
+      if (!lignes.length) throw new Error('Au moins une ligne valide est requise');
+      return (
+        await api.post(`/facturation/manuel/${dossierId}`, {
+          type: 'FACTURE',
+          lignes,
+        })
+      ).data as Facture;
+    },
+    onSuccess: (f) => {
+      void qc.invalidateQueries({ queryKey: ['factures', dossierId] });
+      setCreateOpen(false);
+      setManualLignes([
+        { code: 'TF-001', description: '', quantite: '1', montant: '' },
+      ]);
+      toast.success('Facture manuelle créée');
+      void openPreview(f);
+    },
+    onError: (e: { response?: { data?: { message?: string } } | undefined; message?: string }) =>
+      toast.error(
+        e.response?.data?.message ?? e.message ?? 'Création impossible',
+      ),
   });
 
   const payer = useMutation({
@@ -271,6 +288,13 @@ export function FacturationPanel({
             <Button variant="secondary" disabled={locked} onClick={() => setCreateOpen(true)}>
               <Plus className="h-4 w-4" /> Facture manuelle
             </Button>
+            <Button
+              variant="secondary"
+              disabled={locked || creerFactureAuto.isPending}
+              onClick={() => creerFactureAuto.mutate()}
+            >
+              <Plus className="h-4 w-4" /> Générer une facture
+            </Button>
             <Button disabled={locked || creerDevis.isPending} onClick={() => creerDevis.mutate()}>
               <Plus className="h-4 w-4" /> Générer un devis
             </Button>
@@ -391,49 +415,155 @@ export function FacturationPanel({
 
       {createOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="w-full max-w-md space-y-3 rounded-2xl bg-surface p-6 shadow-soft">
-            <h4 className="font-bold">Créer une facture</h4>
-            <p className="text-xs text-muted">
-              Le document suivra le modèle officiel eXpert (code de vérification + QR).
-            </p>
-            <Input
-              placeholder="Code frais (ex. TF-001)"
-              value={manual.code}
-              onChange={(e) => setManual({ ...manual, code: e.target.value })}
-            />
-            <Input
-              required
-              placeholder="Libellé des frais"
-              value={manual.description}
-              onChange={(e) => setManual({ ...manual, description: e.target.value })}
-            />
-            <div className="grid grid-cols-2 gap-2">
-              <Input
-                type="number"
-                min={1}
-                placeholder="Qté"
-                value={manual.quantite}
-                onChange={(e) => setManual({ ...manual, quantite: e.target.value })}
-              />
-              <Input
-                type="number"
-                min={0.01}
-                step="0.01"
-                placeholder="Montant total USD"
-                value={manual.montant}
-                onChange={(e) => setManual({ ...manual, montant: e.target.value })}
-              />
+          <div className="max-h-[92vh] w-full max-w-2xl space-y-4 overflow-y-auto rounded-2xl bg-surface p-6 shadow-soft">
+            <div>
+              <h4 className="text-lg font-extrabold">Créer une facture manuelle</h4>
+              <p className="mt-1 text-sm text-muted">
+                Remplissez les lignes ci-dessous. Le PDF utilisera le modèle officiel eXpert
+                (code de vérification + QR).
+              </p>
+              {(patientName || dossierNumero) && (
+                <div className="mt-3 grid gap-2 rounded-xl border border-[var(--border)] bg-canvas px-3 py-2 text-sm sm:grid-cols-2">
+                  <div>
+                    <div className="text-[10px] font-bold uppercase tracking-wide text-muted">
+                      Patient
+                    </div>
+                    <div className="font-semibold">{patientName || '—'}</div>
+                  </div>
+                  <div>
+                    <div className="text-[10px] font-bold uppercase tracking-wide text-muted">
+                      Dossier
+                    </div>
+                    <div className="font-semibold">{dossierNumero || '—'}</div>
+                  </div>
+                </div>
+              )}
             </div>
+
+            <div className="space-y-3">
+              {manualLignes.map((ligne, idx) => (
+                <div
+                  key={idx}
+                  className="rounded-xl border border-[var(--border)] bg-canvas/60 p-3"
+                >
+                  <div className="mb-2 flex items-center justify-between">
+                    <span className="text-xs font-bold uppercase tracking-wide text-muted">
+                      Ligne {idx + 1}
+                    </span>
+                    {manualLignes.length > 1 && (
+                      <button
+                        type="button"
+                        className="text-xs font-semibold text-danger hover:underline"
+                        onClick={() =>
+                          setManualLignes((rows) => rows.filter((_, i) => i !== idx))
+                        }
+                      >
+                        Retirer
+                      </button>
+                    )}
+                  </div>
+                  <div className="grid gap-2 sm:grid-cols-[120px_1fr]">
+                    <Input
+                      placeholder="Code"
+                      value={ligne.code}
+                      onChange={(e) =>
+                        setManualLignes((rows) =>
+                          rows.map((r, i) =>
+                            i === idx ? { ...r, code: e.target.value } : r,
+                          ),
+                        )
+                      }
+                    />
+                    <Input
+                      required
+                      placeholder="Libellé / description"
+                      value={ligne.description}
+                      onChange={(e) =>
+                        setManualLignes((rows) =>
+                          rows.map((r, i) =>
+                            i === idx ? { ...r, description: e.target.value } : r,
+                          ),
+                        )
+                      }
+                    />
+                  </div>
+                  <div className="mt-2 grid grid-cols-2 gap-2">
+                    <Input
+                      type="number"
+                      min={1}
+                      placeholder="Quantité"
+                      value={ligne.quantite}
+                      onChange={(e) =>
+                        setManualLignes((rows) =>
+                          rows.map((r, i) =>
+                            i === idx ? { ...r, quantite: e.target.value } : r,
+                          ),
+                        )
+                      }
+                    />
+                    <Input
+                      type="number"
+                      min={0.01}
+                      step="0.01"
+                      placeholder="Montant USD"
+                      value={ligne.montant}
+                      onChange={(e) =>
+                        setManualLignes((rows) =>
+                          rows.map((r, i) =>
+                            i === idx ? { ...r, montant: e.target.value } : r,
+                          ),
+                        )
+                      }
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() =>
+                setManualLignes((rows) => [
+                  ...rows,
+                  {
+                    code: `TF-${String(rows.length + 1).padStart(3, '0')}`,
+                    description: '',
+                    quantite: '1',
+                    montant: '',
+                  },
+                ])
+              }
+            >
+              <Plus className="h-4 w-4" /> Ajouter une ligne
+            </Button>
+
+            <div className="rounded-xl bg-brand/5 px-3 py-2 text-sm font-semibold text-brand">
+              Total :{' '}
+              {formatMoney(
+                manualLignes.reduce((s, l) => s + (Number(l.montant) || 0), 0),
+              )}
+            </div>
+
             <div className="flex gap-2">
-              <Button variant="secondary" className="flex-1" onClick={() => setCreateOpen(false)}>
+              <Button
+                variant="secondary"
+                className="flex-1"
+                onClick={() => setCreateOpen(false)}
+              >
                 Annuler
               </Button>
               <Button
                 className="flex-1"
-                disabled={creerManuel.isPending || !manual.description || !manual.montant}
+                disabled={
+                  creerManuel.isPending ||
+                  !manualLignes.some(
+                    (l) => l.description.trim() && Number(l.montant) > 0,
+                  )
+                }
                 onClick={() => creerManuel.mutate()}
               >
-                Générer
+                Générer la facture
               </Button>
             </div>
           </div>

@@ -79,15 +79,33 @@ async function seedTarifs() {
 }
 
 async function seedVersion() {
+  const version = process.env.APP_VERSION || '1.0.3';
+  await prisma.appVersion.updateMany({
+    where: { version: { not: version } },
+    data: { actif: false },
+  });
   await prisma.appVersion.upsert({
-    where: { version: '1.0.0' },
+    where: { version },
     create: {
-      version: '1.0.0',
-      changelog: 'MVP eXpert — Dossiers, Cotation, Validation, RBAC',
+      version,
+      changelog:
+        'Correctifs mises à jour installateurs, factures manuelles/auto, documents passeport & médical.',
       driveUrl: process.env.DRIVE_DOWNLOAD_URL,
+      downloadUrlMac:
+        process.env.PUBLIC_API_BASE_URL
+          ? `${process.env.PUBLIC_API_BASE_URL.replace(/\/$/, '')}/version/download/mac`
+          : undefined,
+      downloadUrlWin:
+        process.env.PUBLIC_API_BASE_URL
+          ? `${process.env.PUBLIC_API_BASE_URL.replace(/\/$/, '')}/version/download/win`
+          : undefined,
       actif: true,
     },
-    update: { actif: true },
+    update: {
+      actif: true,
+      changelog:
+        'Correctifs mises à jour installateurs, factures manuelles/auto, documents passeport & médical.',
+    },
   });
 }
 

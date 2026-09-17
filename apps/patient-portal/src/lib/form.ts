@@ -199,7 +199,7 @@ export function stepsFor(categorie: Categorie | ''): { id: StepId; label: string
     base.push({ id: 'institution', label: 'Institution' });
   }
   base.push(
-    { id: 'photo', label: 'Photo' },
+    { id: 'photo', label: 'Documents' },
     { id: 'verification', label: 'Vérification' },
     { id: 'confirmation', label: 'Confirmation' },
   );
