@@ -57,19 +57,25 @@ export class VersionController {
     const pageUrl =
       row?.driveUrl || this.config.get('DRIVE_DOWNLOAD_URL') || undefined;
 
-    const configVersion = this.config.get<string>('APP_VERSION', '1.0.3') ?? '1.0.3';
+    const configVersion = this.config.get<string>('APP_VERSION', '1.0.4') ?? '1.0.4';
+    // Plancher minimal : force la notif pour tous les installateurs ≤ 1.0.3
+    const FORCE_MIN = '1.0.4';
     const dbVersion = row?.version ?? '0.0.0';
-    const version = this.isNewer(configVersion, dbVersion) ? configVersion : dbVersion;
+    let version = dbVersion;
+    if (this.isNewer(configVersion, version)) version = configVersion;
+    if (this.isNewer(FORCE_MIN, version)) version = FORCE_MIN;
 
-    // Synchronise la table si la version config est plus récente (ex. après deploy)
-    if (this.isNewer(configVersion, dbVersion)) {
+    const changelog =
+      'Mise à jour eXpert disponible — corrections factures, documents et installateurs. Cliquez sur Mettre à jour.';
+
+    // Synchronise la table si la version publiée est plus récente
+    if (this.isNewer(version, dbVersion) || !row?.actif) {
       await this.prisma.appVersion.updateMany({ data: { actif: false } });
       await this.prisma.appVersion.upsert({
-        where: { version: configVersion },
+        where: { version },
         create: {
-          version: configVersion,
-          changelog:
-            'Correctifs mises à jour installateurs, factures manuelles/auto, documents passeport & médical.',
+          version,
+          changelog,
           downloadUrlMac: stableMac,
           downloadUrlWin: stableWin,
           driveUrl: pageUrl,
@@ -79,8 +85,7 @@ export class VersionController {
           actif: true,
           downloadUrlMac: stableMac,
           downloadUrlWin: stableWin,
-          changelog:
-            'Correctifs mises à jour installateurs, factures manuelles/auto, documents passeport & médical.',
+          changelog,
         },
       });
     } else if (row) {
@@ -91,16 +96,14 @@ export class VersionController {
       ) {
         await this.prisma.appVersion.update({
           where: { id: row.id },
-          data: { downloadUrlMac: stableMac, downloadUrlWin: stableWin },
+          data: { downloadUrlMac: stableMac, downloadUrlWin: stableWin, changelog },
         });
       }
     }
 
     return {
       version,
-      changelog:
-        row?.changelog ??
-        'Nouvelle version eXpert disponible. Cliquez sur Mettre à jour.',
+      changelog,
       driveUrl: pageUrl,
       downloadUrl: downloadUrlMac || downloadUrlWin || pageUrl,
       downloadUrlMac,

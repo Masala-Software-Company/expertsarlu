@@ -70,7 +70,12 @@ export default function App() {
   }, []);
 
   if (!splashDone && !skipSplash) {
-    return <SplashIntro onDone={finishSplash} />;
+    return (
+      <>
+        <VersionChecker />
+        <SplashIntro onDone={finishSplash} />
+      </>
+    );
   }
 
   return (

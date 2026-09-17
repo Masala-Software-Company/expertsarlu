@@ -1,11 +1,13 @@
 import { useEffect, useState } from 'react';
-import axios from 'axios';
 import { Download, RefreshCw, X } from 'lucide-react';
-import { open } from '@tauri-apps/plugin-shell';
 
-const APP_VERSION = import.meta.env.VITE_APP_VERSION ?? '1.0.0';
-const API = import.meta.env.VITE_API_URL ?? 'http://localhost:3000/api';
-const POLL_MS = 5 * 60 * 1000;
+/** Toujours interroger la prod — même si le build pointe vers une autre API. */
+const PRODUCTION_VERSION_URL =
+  'https://expertsarlu-production.up.railway.app/api/version/latest';
+const LOCAL_VERSION =
+  (import.meta.env.VITE_APP_VERSION as string | undefined)?.trim() || '1.0.0';
+const LOCAL_API = (import.meta.env.VITE_API_URL as string | undefined)?.replace(/\/$/, '');
+const POLL_MS = 2 * 60 * 1000;
 
 type Latest = {
   version: string;
@@ -18,8 +20,8 @@ type Latest = {
 };
 
 function isNewer(remote: string, local: string) {
-  const a = remote.replace(/^v/, '').split('.').map(Number);
-  const b = local.replace(/^v/, '').split('.').map(Number);
+  const a = remote.replace(/^v/i, '').split('.').map((n) => parseInt(n, 10) || 0);
+  const b = local.replace(/^v/i, '').split('.').map((n) => parseInt(n, 10) || 0);
   for (let i = 0; i < Math.max(a.length, b.length); i++) {
     const x = a[i] ?? 0;
     const y = b[i] ?? 0;
@@ -38,35 +40,66 @@ function detectPlatform(): 'mac' | 'win' | 'other' {
 
 async function openDownload(url: string) {
   try {
+    const { open } = await import('@tauri-apps/plugin-shell');
     await open(url);
   } catch {
     window.open(url, '_blank', 'noopener,noreferrer');
   }
 }
 
+async function fetchLatest(): Promise<Latest | null> {
+  const urls = [
+    PRODUCTION_VERSION_URL,
+    LOCAL_API ? `${LOCAL_API}/version/latest` : null,
+  ].filter(Boolean) as string[];
+
+  for (const url of urls) {
+    try {
+      const ctrl = new AbortController();
+      const t = window.setTimeout(() => ctrl.abort(), 12_000);
+      const res = await fetch(url, {
+        method: 'GET',
+        signal: ctrl.signal,
+        cache: 'no-store',
+        headers: { Accept: 'application/json' },
+      });
+      window.clearTimeout(t);
+      if (!res.ok) continue;
+      const data = (await res.json()) as Latest;
+      if (data?.version) return data;
+    } catch {
+      /* essai suivant */
+    }
+  }
+  return null;
+}
+
 export function VersionChecker() {
   const [latest, setLatest] = useState<Latest | null>(null);
-  const [dismissed, setDismissed] = useState<string | null>(null);
+  const [dismissed, setDismissed] = useState<string | null>(() => {
+    try {
+      return sessionStorage.getItem('expert-update-dismissed');
+    } catch {
+      return null;
+    }
+  });
 
   useEffect(() => {
     let cancelled = false;
 
     const check = async () => {
-      try {
-        const { data } = await axios.get<Latest>(`${API}/version/latest`, {
-          timeout: 15_000,
-        });
-        if (!cancelled) setLatest(data);
-      } catch {
-        /* silencieux hors ligne */
-      }
+      const data = await fetchLatest();
+      if (!cancelled && data) setLatest(data);
     };
 
     void check();
     const id = window.setInterval(() => void check(), POLL_MS);
+    // 2e check rapide au cas où le réseau démarre après le splash
+    const retry = window.setTimeout(() => void check(), 8_000);
     return () => {
       cancelled = true;
       window.clearInterval(id);
+      window.clearTimeout(retry);
     };
   }, []);
 
@@ -84,7 +117,7 @@ export function VersionChecker() {
   const show =
     latest &&
     dismissed !== latest.version &&
-    isNewer(latest.version, APP_VERSION);
+    isNewer(latest.version, LOCAL_VERSION);
 
   if (!show || !latest) return null;
 
@@ -94,7 +127,7 @@ export function VersionChecker() {
         <RefreshCw className="h-4 w-4 shrink-0 opacity-90" />
         <div className="min-w-0 flex-1 text-sm">
           <strong>Nouvelle version {latest.version}</strong>
-          <span className="opacity-90"> — vous avez {APP_VERSION}. </span>
+          <span className="opacity-90"> — vous avez {LOCAL_VERSION}. </span>
           {latest.changelog ? (
             <span className="opacity-90">{latest.changelog} </span>
           ) : null}
@@ -112,7 +145,14 @@ export function VersionChecker() {
         <button
           type="button"
           className="rounded-md p-1 hover:bg-white/15 shrink-0"
-          onClick={() => setDismissed(latest.version)}
+          onClick={() => {
+            setDismissed(latest.version);
+            try {
+              sessionStorage.setItem('expert-update-dismissed', latest.version);
+            } catch {
+              /* ignore */
+            }
+          }}
           aria-label="Fermer"
         >
           <X className="h-4 w-4" />
