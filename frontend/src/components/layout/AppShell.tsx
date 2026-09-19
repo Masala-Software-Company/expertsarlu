@@ -110,7 +110,7 @@ export function AppShell() {
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="flex h-16 items-center justify-between gap-3 border-b border-[var(--border)] bg-surface px-5 backdrop-blur supports-[backdrop-filter]:bg-[color-mix(in_srgb,var(--surface)_85%,transparent)]">
+        <header className="relative z-40 flex h-16 shrink-0 items-center justify-between gap-3 border-b border-[var(--border)] bg-surface px-5 backdrop-blur supports-[backdrop-filter]:bg-[color-mix(in_srgb,var(--surface)_85%,transparent)]">
           <button
             type="button"
             onClick={() => setCommandOpen(true)}

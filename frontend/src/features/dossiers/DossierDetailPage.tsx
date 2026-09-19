@@ -162,8 +162,14 @@ export function DossierDetailPage() {
           ? res.url
           : `${import.meta.env.VITE_PUBLIC_SUIVI_BASE_URL?.replace(/\/$/, '') || 'https://patient.expert-evac.com'}/suivi/${res.token}`;
       setSuiviUrl(full);
-      void navigator.clipboard?.writeText(full).catch(() => undefined);
-      toast.success('Lien de suivi patient prêt');
+      const patientName = dossier?.patient
+        ? `${dossier.patient.prenom} ${dossier.patient.nom}`
+        : 'patient';
+      const shareText = `Carte d’assistance eXpert SARLU — ${patientName}${
+        dossier?.numero ? ` (${dossier.numero})` : ''
+      }\n${full}`;
+      void navigator.clipboard?.writeText(shareText).catch(() => undefined);
+      toast.success('Lien de carte d’assistance prêt');
     },
     onError: (e: { response?: { data?: { message?: string } } }) =>
       toast.error(
@@ -301,6 +307,13 @@ export function DossierDetailPage() {
                 onChange={async (e) => {
                   const file = e.target.files?.[0];
                   if (!file) return;
+                  const { validatePatientPortrait } = await import('@/lib/patient-photo');
+                  const err = await validatePatientPortrait(file);
+                  if (err) {
+                    toast.error(err);
+                    e.target.value = '';
+                    return;
+                  }
                   const fd = new FormData();
                   fd.append('file', file);
                   try {
@@ -927,7 +940,13 @@ export function DossierDetailPage() {
           <div className="w-full max-w-lg space-y-4 rounded-2xl bg-surface p-6 shadow-soft">
             <h3 className="text-lg font-bold">Lien de suivi patient</h3>
             <p className="text-sm text-muted">
-              Partagez ce lien avec le patient — aucune connexion requise.
+              Carte d’assistance de{' '}
+              <strong>
+                {dossier?.patient
+                  ? `${dossier.patient.prenom} ${dossier.patient.nom}`
+                  : 'ce patient'}
+              </strong>
+              {dossier?.numero ? ` · ${dossier.numero}` : ''}. Aucune connexion requise.
             </p>
             <code className="block break-all rounded-xl bg-canvas px-3 py-2 text-xs">{suiviUrl}</code>
             <div className="flex flex-wrap gap-2">
@@ -935,8 +954,14 @@ export function DossierDetailPage() {
                 variant="secondary"
                 className="flex-1"
                 onClick={() => {
-                  void navigator.clipboard.writeText(suiviUrl);
-                  toast.success('Copié');
+                  const patientName = dossier?.patient
+                    ? `${dossier.patient.prenom} ${dossier.patient.nom}`
+                    : 'patient';
+                  const shareText = `Carte d’assistance eXpert SARLU — ${patientName}${
+                    dossier?.numero ? ` (${dossier.numero})` : ''
+                  }\n${suiviUrl}`;
+                  void navigator.clipboard.writeText(shareText);
+                  toast.success('Lien de carte d’assistance copié');
                 }}
               >
                 <Copy className="h-4 w-4" /> Copier
@@ -947,6 +972,20 @@ export function DossierDetailPage() {
               >
                 <ExternalLink className="h-4 w-4" /> Ouvrir
               </Button>
+              {dossier?.patient?.telephone ? (
+                <a
+                  href={`https://wa.me/${String(dossier.patient.telephone).replace(/\D/g, '')}?text=${encodeURIComponent(
+                    `Carte d’assistance eXpert SARLU — ${dossier.patient.prenom} ${dossier.patient.nom}${
+                      dossier.numero ? ` (${dossier.numero})` : ''
+                    }\n${suiviUrl}`,
+                  )}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex h-10 flex-1 items-center justify-center gap-2 rounded-xl bg-[#25D366] px-4 text-sm font-semibold text-white"
+                >
+                  WhatsApp
+                </a>
+              ) : null}
               <Button variant="ghost" onClick={() => setSuiviUrl(null)}>
                 Fermer
               </Button>

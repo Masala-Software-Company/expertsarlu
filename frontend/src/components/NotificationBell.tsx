@@ -179,7 +179,7 @@ export function NotificationBell() {
   };
 
   return (
-    <div ref={rootRef} className="relative">
+    <div ref={rootRef} className="relative z-50">
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
@@ -195,7 +195,7 @@ export function NotificationBell() {
       </button>
 
       {open && (
-        <div className="absolute right-0 z-50 mt-2 flex w-[22rem] max-w-[calc(100vw-2rem)] flex-col overflow-hidden rounded-2xl border border-[var(--border)] bg-surface shadow-soft">
+        <div className="absolute right-0 z-[100] mt-2 flex w-[22rem] max-w-[calc(100vw-2rem)] flex-col overflow-hidden rounded-2xl border border-[var(--border)] bg-surface shadow-soft">
           <div className="flex items-center justify-between gap-2 border-b border-[var(--border)] px-4 py-3">
             <div>
               <div className="text-sm font-bold">Notifications</div>

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api } from '@/lib/api';
+import { isLikelyPortraitUrl } from '@/lib/patient-photo';
 import { cn } from '@/lib/utils';
 
 type Props = {
@@ -48,7 +49,14 @@ export function PatientAvatar({
         });
         if (cancelled) return;
         objectUrl = URL.createObjectURL(data);
-        setSrc(objectUrl);
+        const ok = await isLikelyPortraitUrl(objectUrl);
+        if (cancelled) return;
+        if (ok) setSrc(objectUrl);
+        else {
+          URL.revokeObjectURL(objectUrl);
+          objectUrl = null;
+          setSrc(null);
+        }
       } catch {
         if (!cancelled) setSrc(null);
       }

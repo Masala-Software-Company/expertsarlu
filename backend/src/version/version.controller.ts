@@ -58,15 +58,15 @@ export class VersionController {
     const pageUrl =
       row?.driveUrl || this.config.get('DRIVE_DOWNLOAD_URL') || undefined;
 
-    const configVersion = this.config.get<string>('APP_VERSION', '1.0.5') ?? '1.0.5';
-    const FORCE_MIN = '1.0.5';
+    const configVersion = this.config.get<string>('APP_VERSION', '1.0.6') ?? '1.0.6';
+    const FORCE_MIN = '1.0.6';
     const dbVersion = row?.version ?? '0.0.0';
     let version = dbVersion;
     if (this.isNewer(configVersion, version)) version = configVersion;
     if (this.isNewer(FORCE_MIN, version)) version = FORCE_MIN;
 
     const changelog =
-      'Mise à jour silencieuse eXpert — installation automatique au redémarrage.';
+      'Mise à jour eXpert 1.0.6 — notifications, suivi patient, correctifs UI.';
 
     if (this.isNewer(version, dbVersion) || !row?.actif) {
       await this.prisma.appVersion.updateMany({ data: { actif: false } });

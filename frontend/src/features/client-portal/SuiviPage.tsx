@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useParams } from 'react-router-dom';
 import { api } from '@/lib/api';
+import { isLikelyPortraitUrl } from '@/lib/patient-photo';
 import { STATUT_LABELS } from '@/lib/utils';
 import { labelOf, TACHE_STATUT_LABELS, RDV_TYPE_LABELS, POST_RETOUR_LABELS } from '@/lib/status-labels';
 import logoBlue from '@/assets/logos/logo-blue.png';
@@ -29,7 +30,14 @@ export function SuiviPage() {
         const { res } = await fetchPhoto(token);
         if (cancelled || !res) return;
         objectUrl = URL.createObjectURL(res);
-        setPhotoUrl(objectUrl);
+        const ok = await isLikelyPortraitUrl(objectUrl);
+        if (cancelled) return;
+        if (ok) setPhotoUrl(objectUrl);
+        else {
+          URL.revokeObjectURL(objectUrl);
+          objectUrl = null;
+          setPhotoUrl(null);
+        }
       } catch {
         if (!cancelled) setPhotoUrl(null);
       }

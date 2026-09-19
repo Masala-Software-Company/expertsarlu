@@ -79,7 +79,7 @@ async function seedTarifs() {
 }
 
 async function seedVersion() {
-  const version = process.env.APP_VERSION || '1.0.5';
+  const version = process.env.APP_VERSION || '1.0.6';
   await prisma.appVersion.updateMany({
     where: { version: { not: version } },
     data: { actif: false },
