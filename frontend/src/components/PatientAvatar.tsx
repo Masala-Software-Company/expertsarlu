@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
 import { api } from '@/lib/api';
-import { isLikelyPortraitUrl } from '@/lib/patient-photo';
 import { cn } from '@/lib/utils';
 
 type Props = {
@@ -17,6 +16,24 @@ const SIZES = {
   md: 'h-10 w-10 text-xs',
   lg: 'h-14 w-14 text-sm',
 };
+
+function isPortraitBlob(url: string): Promise<boolean> {
+  return new Promise((resolve) => {
+    const img = new Image();
+    const done = (ok: boolean) => {
+      window.clearTimeout(timer);
+      resolve(ok);
+    };
+    const timer = window.setTimeout(() => done(true), 2500);
+    img.onload = () => {
+      const ratio = img.naturalWidth / Math.max(img.naturalHeight, 1);
+      // Logos / bannières très paysage → initiales ; sinon on affiche la photo
+      done(ratio <= 1.45);
+    };
+    img.onerror = () => done(false);
+    img.src = url;
+  });
+}
 
 export function PatientAvatar({
   patientId,
@@ -48,8 +65,22 @@ export function PatientAvatar({
           headers: { 'Cache-Control': 'no-cache' },
         });
         if (cancelled) return;
+        if (!(data instanceof Blob) || data.size === 0) {
+          setSrc(null);
+          return;
+        }
+        // Évite d’afficher du JSON/HTML d’erreur comme image
+        if (data.type && !data.type.startsWith('image/')) {
+          setSrc(null);
+          return;
+        }
         objectUrl = URL.createObjectURL(data);
-        const ok = await isLikelyPortraitUrl(objectUrl);
+        let ok = true;
+        try {
+          ok = await isPortraitBlob(objectUrl);
+        } catch {
+          ok = true;
+        }
         if (cancelled) return;
         if (ok) setSrc(objectUrl);
         else {

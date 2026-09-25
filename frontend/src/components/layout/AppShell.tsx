@@ -19,10 +19,13 @@ import { ROLE_LABELS, cn, firstName } from '@/lib/utils';
 import { Button } from '@/components/ui/Button';
 import { UserAvatar } from '@/components/UserAvatar';
 import { NotificationBell } from '@/components/NotificationBell';
+import { api } from '@/lib/api';
 import type { User } from '@/features/auth/auth-store';
 
 export function AppShell() {
   const user = useAuthStore((s) => s.user);
+  const accessToken = useAuthStore((s) => s.accessToken);
+  const setUser = useAuthStore((s) => s.setUser);
   const logout = useAuthStore((s) => s.logout);
   const navigate = useNavigate();
   const collapsed = useUiStore((s) => s.sidebarCollapsed);
@@ -30,6 +33,31 @@ export function AppShell() {
   const toggleSidebar = useUiStore((s) => s.toggleSidebar);
   const toggleDark = useUiStore((s) => s.toggleDark);
   const setCommandOpen = useUiStore((s) => s.setCommandOpen);
+
+  // Rafraîchit le profil + permissions à chaque session (évite droits vides → listes vides / UI cassée)
+  useEffect(() => {
+    if (!accessToken) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const me = await api.get('/auth/me');
+        if (cancelled || !me.data) return;
+        setUser({
+          id: me.data.id,
+          nom: me.data.nom,
+          email: me.data.email,
+          role: me.data.role,
+          photoProfil: me.data.photoProfil,
+          permissions: me.data.permissions ?? [],
+        });
+      } catch {
+        /* ignore — garde la session locale */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [accessToken, setUser]);
 
   const items = navForRole(user?.role);
 

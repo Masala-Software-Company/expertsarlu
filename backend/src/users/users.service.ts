@@ -323,9 +323,85 @@ export class UsersService {
       }
     }
 
-    if (user.photoProfil) await this.storage.remove(user.photoProfil);
-    await this.prisma.refreshToken.deleteMany({ where: { userId: id } });
-    await this.prisma.user.delete({ where: { id } });
+    try {
+      await this.prisma.$transaction(async (tx) => {
+        // Réassigner / détacher les FK obligatoires avant suppression
+        await tx.dossier.updateMany({
+          where: { creeParId: id },
+          data: { creeParId: actor.id },
+        });
+        await tx.dossier.updateMany({
+          where: { valideParId: id },
+          data: { valideParId: null },
+        });
+        await tx.dossier.updateMany({
+          where: { supprimeParId: id },
+          data: { supprimeParId: null },
+        });
+        await tx.facture.updateMany({
+          where: { genereParId: id },
+          data: { genereParId: actor.id },
+        });
+        await tx.documentGED.updateMany({
+          where: { uploadeParId: id },
+          data: { uploadeParId: actor.id },
+        });
+        await tx.demandeDeverrouillage.updateMany({
+          where: { demandeParId: id },
+          data: { demandeParId: actor.id },
+        });
+        await tx.demandeDeverrouillage.updateMany({
+          where: { traiteParId: id },
+          data: { traiteParId: null },
+        });
+        await tx.demandeSuppressionFacture.updateMany({
+          where: { demandeParId: id },
+          data: { demandeParId: actor.id },
+        });
+        await tx.demandeSuppressionFacture.updateMany({
+          where: { traiteParId: id },
+          data: { traiteParId: null },
+        });
+        await tx.rendezVous.updateMany({
+          where: { assigneAId: id },
+          data: { assigneAId: null },
+        });
+        await tx.tacheLogistique.updateMany({
+          where: { assigneAId: id },
+          data: { assigneAId: null },
+        });
+        await tx.preInscription.updateMany({
+          where: { traiteParId: id },
+          data: { traiteParId: null },
+        });
+        await tx.auditLog.updateMany({
+          where: { userId: id },
+          data: { userId: null },
+        });
+        await tx.communication.updateMany({
+          where: { auteurId: id },
+          data: { auteurId: null },
+        });
+        await tx.notification.deleteMany({ where: { userId: id } });
+        await tx.refreshToken.deleteMany({ where: { userId: id } });
+
+        if (user.photoProfil) {
+          try {
+            await this.storage.remove(user.photoProfil);
+          } catch {
+            /* ignore storage */
+          }
+        }
+
+        await tx.user.delete({ where: { id } });
+      });
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      throw new BadRequestException(
+        `Impossible de supprimer ce membre (données liées). Désactivez-le plutôt. ${msg.slice(0, 120)}`,
+      );
+    }
+
     return { ok: true, id };
   }
 }

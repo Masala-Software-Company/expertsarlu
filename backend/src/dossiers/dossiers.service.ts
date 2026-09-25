@@ -100,13 +100,28 @@ export class DossiersService {
         : {}),
     };
 
+    // Liste légère — évite de charger cotation/factures/logistique (crash UI si payload trop lourd)
     const dossiers = await this.prisma.dossier.findMany({
       where,
-      include: this.defaultInclude(),
+      include: {
+        patient: {
+          select: {
+            id: true,
+            nom: true,
+            prenom: true,
+            photoProfil: true,
+            telephone: true,
+            email: true,
+            nationalite: true,
+            numeroPasseport: true,
+          },
+        },
+        creePar: { select: { id: true, nom: true, role: true } },
+      },
       orderBy: { majLe: 'desc' },
     });
 
-    return dossiers.map((d) => this.serializeForRole(d, user.role));
+    return dossiers.map((d) => this.serializeForRole(d as never, user.role));
   }
 
   async findOne(id: string, user: AuthUser) {

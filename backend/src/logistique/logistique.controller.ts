@@ -92,8 +92,15 @@ export class LogistiqueController {
 
   @Get('planning')
   @RequirePermission({ module: 'logistique', action: 'read' })
-  planning(@Query('date') date?: string) {
-    return this.logistique.planningDuJour(date ? new Date(date) : new Date());
+  planning(@Query('date') date?: string, @Query('days') days?: string) {
+    // Sans `days` → journée seule (dashboard). Avec `days` → fenêtre (page Protocole).
+    const daysAhead =
+      days === undefined || days === ''
+        ? 0
+        : Math.min(Math.max(parseInt(days, 10) || 90, 0), 365);
+    return this.logistique.planningDuJour(date ? new Date(date) : new Date(), {
+      daysAhead,
+    });
   }
 
   @Post('rendez-vous')

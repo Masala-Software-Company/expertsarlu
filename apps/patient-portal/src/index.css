@@ -25,6 +25,7 @@ body {
   .field {
     @apply w-full rounded-xl border bg-white px-3.5 py-2.5 text-sm outline-none transition;
     border-color: var(--border);
+    min-height: 2.75rem;
   }
   .field:focus {
     border-color: var(--brand);
@@ -35,7 +36,7 @@ body {
     color: rgba(10, 10, 10, 0.75);
   }
   .err {
-    @apply mt-1 text-xs font-medium text-red-600;
+    @apply mt-1 block text-xs font-medium text-red-600;
   }
   .btn-primary {
     @apply inline-flex items-center justify-center rounded-xl px-5 py-2.5 text-sm font-bold text-white transition disabled:cursor-not-allowed disabled:opacity-50;

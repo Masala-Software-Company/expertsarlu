@@ -52,11 +52,21 @@ export class LogistiqueService {
     });
   }
 
-  planningDuJour(date = new Date()) {
+  /**
+   * Planning protocole.
+   * - daysAhead = 0 → uniquement le jour `date`
+   * - daysAhead > 0 → de ce jour jusqu’à +N jours
+   */
+  planningDuJour(date = new Date(), opts?: { daysAhead?: number }) {
+    const daysAhead = opts?.daysAhead ?? 0;
     const start = new Date(date);
-    start.setHours(0, 0, 0, 0);
-    const end = new Date(date);
-    end.setHours(23, 59, 59, 999);
+    start.setUTCHours(0, 0, 0, 0);
+    const end = new Date(start);
+    if (daysAhead > 0) {
+      end.setUTCDate(end.getUTCDate() + daysAhead);
+    }
+    end.setUTCHours(23, 59, 59, 999);
+
     return this.prisma.rendezVous.findMany({
       where: { dateHeure: { gte: start, lte: end } },
       include: {

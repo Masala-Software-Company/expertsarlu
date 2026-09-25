@@ -40,7 +40,8 @@ export function LogistiquePage() {
 
   const { data = [], isLoading } = useQuery({
     queryKey: ['planning'],
-    queryFn: async () => (await api.get<Rdv[]>('/logistique/planning')).data,
+    queryFn: async () =>
+      (await api.get<Rdv[]>('/logistique/planning', { params: { days: 90 } })).data,
   });
 
   const { data: dossiers = [] } = useQuery({
@@ -48,6 +49,13 @@ export function LogistiquePage() {
     queryFn: async () => (await api.get<DossierOpt[]>('/dossiers')).data,
     enabled: open,
   });
+
+  const sorted = useMemo(() => {
+    const list = Array.isArray(data) ? [...data] : [];
+    return list.sort(
+      (a, b) => new Date(a.dateHeure).getTime() - new Date(b.dateHeure).getTime(),
+    );
+  }, [data]);
 
   const filteredDossiers = useMemo(() => {
     const n = patientQ.trim().toLowerCase();
@@ -87,7 +95,7 @@ export function LogistiquePage() {
         <div>
           <h1 className="text-3xl font-extrabold tracking-tight">Protocole</h1>
           <p className="text-sm text-muted">
-            Planning terrain — navettes, ambassade et hôpital
+            Planning terrain — navettes, ambassade et hôpital (90 prochains jours)
           </p>
         </div>
         <Can module="logistique" action="create">
@@ -100,12 +108,12 @@ export function LogistiquePage() {
           [1, 2, 3].map((i) => (
             <div key={i} className="h-28 animate-pulse rounded-2xl border border-[var(--border)] bg-surface" />
           ))}
-        {!isLoading && data.length === 0 && (
+        {!isLoading && sorted.length === 0 && (
           <div className="col-span-full rounded-2xl border border-dashed border-[var(--border)] bg-surface p-12 text-center text-muted">
-            Aucun rendez-vous aujourd’hui
+            Aucun rendez-vous planifié
           </div>
         )}
-        {data.map((r) => (
+        {sorted.map((r) => (
           <div
             key={r.id}
             className="rounded-2xl border border-[var(--border)] bg-surface p-5 shadow-soft transition-ui hover:border-brand/30"
@@ -120,6 +128,9 @@ export function LogistiquePage() {
             </div>
             <div className="mt-2 text-2xl font-extrabold tracking-tight">
               {format(new Date(r.dateHeure), 'HH:mm', { locale: fr })}
+            </div>
+            <div className="text-sm font-semibold text-ink">
+              {format(new Date(r.dateHeure), 'EEEE d MMMM yyyy', { locale: fr })}
             </div>
             <div className="mt-1 text-sm text-muted">{r.lieu || 'Lieu non précisé'}</div>
             <div className="mt-3 border-t border-[var(--border)] pt-3 text-sm">

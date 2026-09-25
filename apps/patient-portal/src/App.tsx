@@ -12,6 +12,7 @@ import {
 } from '@/lib/form';
 import { validateStep } from '@/lib/validate';
 import { cn } from '@/lib/utils';
+import { validatePatientPortrait } from '@/lib/photo';
 import logoLight from '@/assets/logo-light.png';
 import { SuiviPage } from '@/SuiviPage';
 
@@ -34,20 +35,26 @@ function Field({
   error,
   required,
   children,
+  className,
 }: {
   label: string;
   error?: string;
   required?: boolean;
   children: React.ReactNode;
+  className?: string;
 }) {
   return (
-    <label className="block">
-      <span className="label">
-        {label}
-        {required ? <span className="text-brand"> *</span> : null}
+    <label className={cn('flex min-w-0 flex-col', className)}>
+      <span className="label flex min-h-[2.75rem] items-end leading-snug">
+        <span>
+          {label}
+          {required ? <span className="text-brand"> *</span> : null}
+        </span>
       </span>
       {children}
-      {error ? <span className="err">{error}</span> : null}
+      <span className={cn('err min-h-[1.125rem]', !error && 'opacity-0')} aria-hidden={!error}>
+        {error || '\u00a0'}
+      </span>
     </label>
   );
 }
@@ -140,14 +147,13 @@ function InscriptionApp() {
     if (i >= 0) setStepIndex(i);
   }
 
-  function next() {
+  async function next() {
     const e = validateStep(step, form);
     if (step === 'photo') {
       if (!photo) e.photo = 'Téléchargez une photo JPG ou PNG (max. 5 Mo)';
-      else if (!['image/jpeg', 'image/jpg', 'image/png'].includes(photo.type)) {
-        e.photo = 'Formats acceptés : JPG, JPEG, PNG';
-      } else if (photo.size > 5 * 1024 * 1024) {
-        e.photo = 'Fichier trop volumineux (max. 5 Mo)';
+      else {
+        const photoErr = await validatePatientPortrait(photo);
+        if (photoErr) e.photo = photoErr;
       }
       if (!passeport) e.passeport = 'Le scan / photo du passeport est obligatoire';
       else if (passeport.size > 10 * 1024 * 1024) {
@@ -366,7 +372,7 @@ function InscriptionApp() {
           {step === 'identite' && (
             <section className="space-y-4">
               <h2 className="text-2xl font-extrabold tracking-tight">Identité & état civil</h2>
-              <div className="grid gap-4 sm:grid-cols-2">
+              <div className="grid items-start gap-x-4 gap-y-1 sm:grid-cols-2">
                 <Field label="Nom de famille" required error={errors['identite.nom']}>
                   <input className="field" value={form.identite.nom} onChange={(e) => setIdentite('nom', e.target.value)} />
                 </Field>
@@ -412,7 +418,7 @@ function InscriptionApp() {
                     ))}
                   </select>
                 </Field>
-                <Field label="Statut du patient" required error={errors['identite.statutPatient']}>
+                <Field label="Statut du patient" required error={errors['identite.statutPatient']} className="sm:col-span-2">
                   <select
                     className="field"
                     value={form.identite.statutPatient}
@@ -434,7 +440,7 @@ function InscriptionApp() {
                   <p className="mb-3 text-sm text-ink/60">
                     Section affichée car le statut choisi implique une tutelle ou une autorité parentale.
                   </p>
-                  <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="grid items-start gap-x-4 gap-y-1 sm:grid-cols-2">
                     <Field label="Nom" required error={errors['tuteur.nom']}>
                       <input className="field" value={form.tuteur.nom} onChange={(e) => setForm({ ...form, tuteur: { ...form.tuteur, nom: e.target.value } })} />
                     </Field>
@@ -465,7 +471,7 @@ function InscriptionApp() {
               <Field label="Adresse complète du domicile" required error={errors['coordonnees.adresse']}>
                 <textarea className="field min-h-[88px]" value={form.coordonnees.adresse} onChange={(e) => setForm({ ...form, coordonnees: { ...form.coordonnees, adresse: e.target.value } })} />
               </Field>
-              <div className="grid gap-4 sm:grid-cols-2">
+              <div className="grid items-start gap-x-4 gap-y-1 sm:grid-cols-2">
                 <Field label="Adresse électronique" required error={errors['coordonnees.email']}>
                   <input type="email" className="field" value={form.coordonnees.email} onChange={(e) => setForm({ ...form, coordonnees: { ...form.coordonnees, email: e.target.value } })} />
                 </Field>
@@ -698,9 +704,11 @@ function InscriptionApp() {
             <section className="space-y-6">
               <div className="space-y-4">
                 <h2 className="text-2xl font-extrabold tracking-tight">Photo de profil</h2>
-                <p className="text-sm text-ink/60">JPG, JPEG ou PNG — 5 Mo maximum.</p>
+                <p className="text-sm text-ink/60">
+                  Photo portrait du visage (JPG/PNG, max. 5 Mo) — pas de logo ni de document.
+                </p>
                 <div className="flex flex-col items-start gap-4 sm:flex-row sm:items-center">
-                  <div className="flex h-36 w-36 items-center justify-center overflow-hidden rounded-2xl border border-dashed border-brand/40 bg-brand/[0.06]">
+                  <div className="flex h-36 w-36 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-dashed border-brand/40 bg-brand/[0.06]">
                     {preview ? (
                       <img src={preview} alt="Aperçu" className="h-full w-full object-cover" />
                     ) : (
@@ -717,6 +725,11 @@ function InscriptionApp() {
                         onChange={(e) => {
                           const f = e.target.files?.[0] ?? null;
                           setPhoto(f);
+                          setErrors((prev) => {
+                            const next = { ...prev };
+                            delete next.photo;
+                            return next;
+                          });
                         }}
                       />
                     </label>

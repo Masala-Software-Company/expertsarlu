@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api } from '@/lib/api';
+import { isLikelyPortraitUrl } from '@/lib/photo';
 import logoLight from '@/assets/logo-light.png';
 
 const STATUT_LABELS: Record<string, string> = {
@@ -88,12 +89,17 @@ export function SuiviPage({ token }: { token: string }) {
     }
     void (async () => {
       try {
-        const base = api.defaults.baseURL || '/api';
-        const r = await fetch(`${base}/client/suivi/${token}/photo`);
+        const base = (api.defaults.baseURL || '/api').replace(/\/$/, '');
+        const r = await fetch(`${base}/client/suivi/${encodeURIComponent(token)}/photo`);
         if (!r.ok || cancelled) return;
         const blob = await r.blob();
         objectUrl = URL.createObjectURL(blob);
-        if (!cancelled) setPhotoUrl(objectUrl);
+        const ok = await isLikelyPortraitUrl(objectUrl);
+        if (!cancelled) setPhotoUrl(ok ? objectUrl : null);
+        if (!ok && objectUrl) {
+          URL.revokeObjectURL(objectUrl);
+          objectUrl = null;
+        }
       } catch {
         if (!cancelled) setPhotoUrl(null);
       }
@@ -103,6 +109,15 @@ export function SuiviPage({ token }: { token: string }) {
       if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
   }, [token, data?.patient?.hasPhoto]);
+
+  useEffect(() => {
+    if (!data) return;
+    const name = data.patient ? `${data.patient.prenom} ${data.patient.nom}` : 'Patient';
+    document.title = `Carte d’assistance — ${name} · ${data.numero}`;
+    return () => {
+      document.title = 'Inscription patient — eXpert SARLU';
+    };
+  }, [data]);
 
   if (loading) {
     return (
@@ -158,7 +173,7 @@ export function SuiviPage({ token }: { token: string }) {
             <div className="absolute -bottom-12 left-6">
               <div className="h-24 w-24 overflow-hidden rounded-2xl border-4 border-white bg-slate-200 shadow-lg">
                 {photoUrl ? (
-                  <img src={photoUrl} alt="" className="h-full w-full object-cover" />
+                  <img src={photoUrl} alt={name} className="h-full w-full object-cover" />
                 ) : (
                   <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-slate-100 to-slate-300 text-2xl font-extrabold text-slate-500">
                     {initials}

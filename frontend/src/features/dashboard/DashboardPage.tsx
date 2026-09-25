@@ -785,10 +785,11 @@ export function DashboardPage() {
   const role = user?.role;
   const appRole: AppRole | null = isAppRole(role) ? role : null;
 
-  const { data: dossiers = [], isLoading } = useQuery({
+  const { data: dossiersRaw = [], isLoading } = useQuery({
     queryKey: ['dossiers'],
     queryFn: async () => (await api.get<Dossier[]>('/dossiers')).data,
   });
+  const dossiers = Array.isArray(dossiersRaw) ? dossiersRaw : [];
 
   const { data: pipeline } = useQuery({
     queryKey: ['pipeline'],

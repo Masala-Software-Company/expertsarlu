@@ -42,11 +42,22 @@ export function DossiersPage() {
   const [open, setOpen] = useState(false);
   const qc = useQueryClient();
 
-  const { data = [], isLoading } = useQuery({
+  const { data, isLoading, isError, error, refetch } = useQuery({
     queryKey: ['dossiers', q],
-    queryFn: async () =>
-      (await api.get<DossierRow[]>('/dossiers', { params: { q: q || undefined } })).data,
+    queryFn: async () => {
+      const res = await api.get<DossierRow[]>('/dossiers', {
+        params: { q: q || undefined },
+      });
+      const rows = res.data;
+      if (!Array.isArray(rows)) {
+        throw new Error('Réponse dossiers invalide');
+      }
+      return rows;
+    },
+    retry: 1,
   });
+
+  const rows = Array.isArray(data) ? data : [];
 
   const create = useMutation({
     mutationFn: async (payload: {
@@ -146,7 +157,7 @@ export function DossiersPage() {
   );
 
   const table = useReactTable({
-    data,
+    data: rows,
     columns,
     getCoreRowModel: getCoreRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
@@ -193,6 +204,19 @@ export function DossiersPage() {
         className="max-w-md"
       />
 
+      {isError && (
+        <div className="rounded-2xl border border-danger/30 bg-danger/10 px-4 py-3 text-sm">
+          <p className="font-semibold text-danger">Impossible de charger les dossiers</p>
+          <p className="mt-1 text-muted">
+            {(error as { response?: { data?: { message?: string } } })?.response?.data?.message ||
+              (error instanceof Error ? error.message : 'Erreur réseau')}
+          </p>
+          <Button variant="secondary" size="sm" className="mt-3" onClick={() => void refetch()}>
+            Réessayer
+          </Button>
+        </div>
+      )}
+
       {view === 'table' ? (
         <div className="overflow-hidden rounded-2xl border border-[var(--border)] bg-surface shadow-soft">
           <table className="w-full text-sm">
@@ -217,7 +241,14 @@ export function DossiersPage() {
                   ))}
                 </tr>
               ))}
-              {!isLoading && data.length === 0 && (
+              {isLoading && (
+                <tr>
+                  <td colSpan={5} className="px-4 py-12 text-center text-muted">
+                    Chargement des dossiers…
+                  </td>
+                </tr>
+              )}
+              {!isLoading && !isError && rows.length === 0 && (
                 <tr>
                   <td colSpan={5} className="px-4 py-12 text-center text-muted">
                     Aucun dossier
@@ -247,7 +278,7 @@ export function DossiersPage() {
                 {STATUT_LABELS[col]}
               </div>
               <div className="space-y-2">
-                {data
+                {rows
                   .filter((d) => d.statut === col)
                   .map((d) => (
                     <div

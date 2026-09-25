@@ -3,5 +3,8 @@
   "outputDirectory": "dist",
   "framework": "vite",
   "installCommand": "pnpm install",
-  "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }]
+  "rewrites": [
+    { "source": "/suivi/:token", "destination": "/api/suivi-og?token=:token" },
+    { "source": "/(.*)", "destination": "/index.html" }
+  ]
 }

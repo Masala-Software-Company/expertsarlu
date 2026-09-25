@@ -334,7 +334,12 @@ export class PreInscriptionsService {
     partenaireId?: string;
   }) {
     const where: Prisma.PreInscriptionWhereInput = {};
-    if (filters.statut) where.statut = filters.statut;
+    if (filters.statut) {
+      where.statut = filters.statut;
+    } else {
+      // Page « Nouveaux patients » : masquer les dossiers déjà créés par défaut
+      where.statut = { not: 'DOSSIER_CREE' };
+    }
     if (filters.categorie) where.categorie = filters.categorie;
     if (filters.partenaireId) where.partenaireId = filters.partenaireId;
     if (filters.q?.trim()) {

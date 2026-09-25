@@ -161,7 +161,7 @@ function Section({
 export function PreInscriptionsPage() {
   const qc = useQueryClient();
   const [q, setQ] = useState('');
-  const [statut, setStatut] = useState('');
+  const [statut, setStatut] = useState('A_VERIFIER');
   const [categorie, setCategorie] = useState('');
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [motif, setMotif] = useState('');
@@ -293,12 +293,15 @@ export function PreInscriptionsPage() {
           value={statut}
           onChange={(e) => setStatut(e.target.value)}
         >
-          <option value="">Tous les statuts</option>
-          {Object.entries(STATUT_LABELS).map(([k, v]) => (
-            <option key={k} value={k}>
-              {v}
-            </option>
-          ))}
+          <option value="A_VERIFIER">À vérifier</option>
+          <option value="">Tous (hors dossier créé)</option>
+          {Object.entries(STATUT_LABELS)
+            .filter(([k]) => k !== 'DOSSIER_CREE' && k !== 'A_VERIFIER')
+            .map(([k, v]) => (
+              <option key={k} value={k}>
+                {v}
+              </option>
+            ))}
         </select>
         <select
           className="rounded-xl border border-[var(--border)] bg-surface px-3 py-2 text-sm"

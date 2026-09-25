@@ -10,6 +10,7 @@ import {
   mailtoPatientUrl,
   whatsappChatUrl,
 } from '@/lib/patient-contact';
+import { openExternalUrl } from '@/lib/open-external';
 import { WhatsAppIcon } from '@/components/WhatsAppIcon';
 import {
   labelOf,
@@ -968,23 +969,28 @@ export function DossierDetailPage() {
               </Button>
               <Button
                 className="flex-1"
-                onClick={() => window.open(suiviUrl, '_blank', 'noopener,noreferrer')}
+                onClick={() => {
+                  void openExternalUrl(suiviUrl);
+                }}
               >
                 <ExternalLink className="h-4 w-4" /> Ouvrir
               </Button>
               {dossier?.patient?.telephone ? (
-                <a
-                  href={`https://wa.me/${String(dossier.patient.telephone).replace(/\D/g, '')}?text=${encodeURIComponent(
-                    `Carte d’assistance eXpert SARLU — ${dossier.patient.prenom} ${dossier.patient.nom}${
-                      dossier.numero ? ` (${dossier.numero})` : ''
-                    }\n${suiviUrl}`,
-                  )}`}
-                  target="_blank"
-                  rel="noreferrer"
+                <button
+                  type="button"
+                  onClick={() => {
+                    void openExternalUrl(
+                      `https://wa.me/${String(dossier.patient.telephone).replace(/\D/g, '')}?text=${encodeURIComponent(
+                        `Carte d’assistance eXpert SARLU — ${dossier.patient.prenom} ${dossier.patient.nom}${
+                          dossier.numero ? ` (${dossier.numero})` : ''
+                        }\n${suiviUrl}`,
+                      )}`,
+                    );
+                  }}
                   className="inline-flex h-10 flex-1 items-center justify-center gap-2 rounded-xl bg-[#25D366] px-4 text-sm font-semibold text-white"
                 >
                   WhatsApp
-                </a>
+                </button>
               ) : null}
               <Button variant="ghost" onClick={() => setSuiviUrl(null)}>
                 Fermer
