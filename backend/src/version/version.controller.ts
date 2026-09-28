@@ -196,7 +196,40 @@ export class VersionController {
     contentType: string,
     res: Response,
   ) {
-    const opened = await this.storage.open(`s3:${key}`);
+    let opened = await this.storage.open(`s3:${key}`);
+
+    // Fallback 1.0.8 : artefacts sur branche GitHub si objet S3 absent
+    if (!opened) {
+      const fallbacks: Record<string, string> = {
+        'releases/eXpert.app.tar.gz':
+          'https://raw.githubusercontent.com/Masala-Software-Company/expertsarlu/release-assets-108/assets/eXpert.app.tar.gz',
+        'releases/eXpert-mac.dmg':
+          'https://raw.githubusercontent.com/Masala-Software-Company/expertsarlu/release-assets-108/assets/eXpert_1.0.8_macOS.dmg',
+      };
+      const url = fallbacks[key];
+      if (url) {
+        try {
+          const remote = await fetch(url);
+          if (remote.ok) {
+            const buf = Buffer.from(await remote.arrayBuffer());
+            try {
+              await this.storage.putExact(key, buf, contentType);
+            } catch {
+              /* cache S3 best-effort */
+            }
+            res.setHeader('Content-Type', contentType);
+            res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+            return new StreamableFile(buf);
+          }
+        } catch {
+          /* fall through */
+        }
+      }
+    }
+
+    if (!opened) {
+      opened = await this.storage.open(`s3:${key}`);
+    }
     if (!opened) {
       throw new NotFoundException(
         `Installateur indisponible (${filename}). Réessayez après publication.`,

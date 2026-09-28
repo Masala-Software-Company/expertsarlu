@@ -121,6 +121,22 @@ export class StorageService {
     return path;
   }
 
+  /** Écrit une clé S3 exacte (releases/…). */
+  async putExact(key: string, buffer: Buffer, contentType: string): Promise<string> {
+    if (!this.client || !this.bucket) {
+      throw new Error('S3 non configuré');
+    }
+    await this.client.send(
+      new PutObjectCommand({
+        Bucket: this.bucket,
+        Key: key,
+        Body: buffer,
+        ContentType: contentType,
+      }),
+    );
+    return `${S3_PREFIX}${key}`;
+  }
+
   async open(
     ref: string,
   ): Promise<{ stream: Readable; contentType?: string } | null> {
