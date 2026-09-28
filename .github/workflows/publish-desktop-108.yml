@@ -1,0 +1,215 @@
+name: Publish desktop 1.0.8
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+env:
+  VITE_API_URL: https://expertsarlu-production.up.railway.app/api
+  VITE_APP_VERSION: '1.0.8'
+  VERSION: '1.0.8'
+
+jobs:
+  mac:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build macOS (dmg + updater)
+        working-directory: frontend
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: pnpm exec tauri build --bundles dmg
+
+      - name: Upload mac artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: expert-macos-1.0.8
+          path: |
+            frontend/src-tauri/target/release/bundle/macos/eXpert.app.tar.gz
+            frontend/src-tauri/target/release/bundle/macos/eXpert.app.tar.gz.sig
+            frontend/src-tauri/target/release/bundle/dmg/*.dmg
+          if-no-files-found: error
+
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-msvc
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build Windows
+        working-directory: frontend
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: pnpm exec tauri build --bundles nsis
+
+      - name: Upload windows artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: expert-windows-1.0.8
+          path: |
+            frontend/src-tauri/target/release/bundle/nsis/*.exe
+            frontend/src-tauri/target/release/bundle/nsis/*.sig
+          if-no-files-found: error
+
+  publish:
+    needs: [mac, windows]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Download mac artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: expert-macos-1.0.8
+          path: dist/mac
+
+      - name: Download windows artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: expert-windows-1.0.8
+          path: dist/win
+
+      - name: Install publish deps
+        working-directory: backend
+        run: npm install --no-save @aws-sdk/client-s3 @prisma/client prisma
+
+      - name: Publish to S3 + AppVersion
+        working-directory: backend
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          S3_ENDPOINT: ${{ secrets.S3_ENDPOINT }}
+          S3_REGION: ${{ secrets.S3_REGION }}
+          S3_BUCKET: ${{ secrets.S3_BUCKET }}
+          S3_ACCESS_KEY_ID: ${{ secrets.S3_ACCESS_KEY_ID }}
+          S3_SECRET_ACCESS_KEY: ${{ secrets.S3_SECRET_ACCESS_KEY }}
+        run: |
+          node <<'NODE'
+          const fs = require('fs');
+          const path = require('path');
+          const { S3Client, PutObjectCommand } = require('@aws-sdk/client-s3');
+          const { PrismaClient } = require('@prisma/client');
+
+          function findOne(dir, re) {
+            const walk = (d) => {
+              for (const name of fs.readdirSync(d)) {
+                const p = path.join(d, name);
+                const st = fs.statSync(p);
+                if (st.isDirectory()) {
+                  const hit = walk(p);
+                  if (hit) return hit;
+                } else if (re.test(name)) return p;
+              }
+              return null;
+            };
+            return walk(dir);
+          }
+
+          const root = path.join(__dirname, '..');
+          const macTar = findOne(path.join(root, 'dist/mac'), /eXpert\.app\.tar\.gz$/);
+          const macSig = findOne(path.join(root, 'dist/mac'), /eXpert\.app\.tar\.gz\.sig$/);
+          const macDmg = findOne(path.join(root, 'dist/mac'), /\.dmg$/);
+          const winExe = findOne(path.join(root, 'dist/win'), /\.exe$/);
+          const winSig = findOne(path.join(root, 'dist/win'), /\.exe\.sig$/);
+
+          if (!macTar || !macSig || !winExe || !winSig) {
+            console.error({ macTar, macSig, macDmg, winExe, winSig });
+            throw new Error('Artefacts manquants');
+          }
+
+          const required = ['DATABASE_URL','S3_ENDPOINT','S3_BUCKET','S3_ACCESS_KEY_ID','S3_SECRET_ACCESS_KEY'];
+          for (const k of required) {
+            if (!process.env[k]) throw new Error(`Secret manquant: ${k}`);
+          }
+
+          const client = new S3Client({
+            endpoint: process.env.S3_ENDPOINT,
+            region: process.env.S3_REGION || 'auto',
+            credentials: {
+              accessKeyId: process.env.S3_ACCESS_KEY_ID,
+              secretAccessKey: process.env.S3_SECRET_ACCESS_KEY,
+            },
+            forcePathStyle: true,
+          });
+          const bucket = process.env.S3_BUCKET;
+          const api = 'https://expertsarlu-production.up.railway.app/api';
+          const version = process.env.VERSION || '1.0.8';
+          const changelog = `Mise à jour eXpert ${version} — suppression équipe, sécurité renforcée, corrections facturation et dossiers.`;
+
+          async function put(Key, file, ContentType) {
+            const Body = fs.readFileSync(file);
+            console.log('upload', Key, Body.length);
+            await client.send(new PutObjectCommand({ Bucket: bucket, Key, Body, ContentType }));
+          }
+
+          (async () => {
+            await put('releases/eXpert.app.tar.gz', macTar, 'application/gzip');
+            if (macDmg) await put('releases/eXpert-mac.dmg', macDmg, 'application/x-apple-diskimage');
+            await put('releases/eXpert-setup.exe', winExe, 'application/octet-stream');
+            await put('releases/eXpert-win.exe', winExe, 'application/octet-stream');
+
+            const macSigText = fs.readFileSync(macSig, 'utf8').trim();
+            const winSigText = fs.readFileSync(winSig, 'utf8').trim();
+            const prisma = new PrismaClient();
+            await prisma.appVersion.updateMany({ data: { actif: false } });
+            const row = await prisma.appVersion.upsert({
+              where: { version },
+              create: {
+                version,
+                changelog,
+                downloadUrlMac: `${api}/version/download/mac`,
+                downloadUrlWin: `${api}/version/download/win`,
+                updaterMacSig: macSigText,
+                updaterWinSig: winSigText,
+                actif: true,
+              },
+              update: {
+                actif: true,
+                changelog,
+                downloadUrlMac: `${api}/version/download/mac`,
+                downloadUrlWin: `${api}/version/download/win`,
+                updaterMacSig: macSigText,
+                updaterWinSig: winSigText,
+              },
+            });
+            console.log('Publié', row.version, 'mac', !!row.updaterMacSig, 'win', !!row.updaterWinSig);
+            await prisma.$disconnect();
+          })().catch(async (e) => {
+            console.error(e);
+            process.exit(1);
+          });
+          NODE
