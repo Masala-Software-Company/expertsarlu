@@ -98,7 +98,8 @@ export class VersionController {
     }
 
     const api = this.publicApiBase();
-    const macUrl = `${api}/version/download/mac-update`;
+    const macUrl =
+      'https://raw.githubusercontent.com/Masala-Software-Company/expertsarlu/release-assets-108/assets/eXpert.app.tar.gz';
     const winUrl = `${api}/version/download/win-update`;
     const macSig = row.updaterMacSig?.trim();
     const winSig = row.updaterWinSig?.trim();
