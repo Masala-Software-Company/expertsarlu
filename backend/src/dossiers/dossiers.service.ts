@@ -597,15 +597,17 @@ export class DossiersService {
   }
 
   async changerStatut(id: string, statut: DossierStatut, user: AuthUser) {
-    const allowed: DossierStatut[] = [
-      'BROUILLON',
-      'EN_COURS',
-      'VALIDE',
-      'FACTURE_PAYE',
-      'VERROUILLE',
-    ];
+    const workflow: DossierStatut[] = ['BROUILLON', 'EN_COURS'];
+    const lockStatuses: DossierStatut[] = ['VALIDE', 'FACTURE_PAYE', 'VERROUILLE'];
+    const allowed: DossierStatut[] = [...workflow, ...lockStatuses];
     if (!allowed.includes(statut)) {
       throw new BadRequestException('Statut non autorisé');
+    }
+    // Validation / verrouillage uniquement via /valider (AM / Super Admin)
+    if (lockStatuses.includes(statut) && !['SUPER_ADMIN', 'ASSISTANT_MANAGER'].includes(user.role)) {
+      throw new ForbiddenException(
+        'Seuls Assistant Manager / Super Admin peuvent valider ou verrouiller un dossier',
+      );
     }
     return this.prisma.$transaction(async (tx) => {
       const dossier = await tx.dossier.findUnique({ where: { id } });
@@ -617,7 +619,8 @@ export class DossiersService {
         where: { id },
         data: {
           statut,
-          verrouille: ['VALIDE', 'FACTURE_PAYE', 'VERROUILLE'].includes(statut),
+          verrouille: lockStatuses.includes(statut),
+          ...(statut === 'VALIDE' ? { valideParId: user.id } : {}),
         },
         include: this.defaultInclude(),
       });
@@ -676,22 +679,13 @@ export class DossiersService {
         statut: true,
         destination: true,
         pathologie: true,
-        priorite: true,
         postRetourStatut: true,
-        postRetourNotes: true,
-        postRetourLe: true,
         patient: {
           select: {
             prenom: true,
             nom: true,
-            nationalite: true,
-            telephone: true,
-            email: true,
             photoProfil: true,
           },
-        },
-        accompagnateurs: {
-          select: { prenom: true, nom: true, lien: true },
         },
         tachesLogistique: {
           select: { titre: true, type: true, statut: true },
@@ -706,14 +700,17 @@ export class DossiersService {
     });
     if (!dossier) throw new NotFoundException('Lien de suivi invalide');
     return {
-      ...dossier,
+      numero: dossier.numero,
+      statut: dossier.statut,
+      destination: dossier.destination,
+      pathologie: dossier.pathologie,
+      postRetourStatut: dossier.postRetourStatut,
+      tachesLogistique: dossier.tachesLogistique,
+      rendezVous: dossier.rendezVous,
       patient: dossier.patient
         ? {
             prenom: dossier.patient.prenom,
             nom: dossier.patient.nom,
-            nationalite: dossier.patient.nationalite,
-            telephone: dossier.patient.telephone,
-            email: dossier.patient.email,
             hasPhoto: Boolean(dossier.patient.photoProfil),
           }
         : null,

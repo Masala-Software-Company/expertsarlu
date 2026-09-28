@@ -365,7 +365,7 @@ export class FacturationService {
               },
             ],
       total: Number(facture.montantTotal),
-      paye: facture.type === 'FACTURE' ? Number(facture.montantTotal) : paye,
+      paye,
       signePar: facture.signeParNom ?? undefined,
       codeVerification: code,
       verifyUrl,
@@ -440,7 +440,7 @@ export class FacturationService {
               },
             ],
       total: Number(facture.montantTotal),
-      paye: facture.type === 'FACTURE' ? Number(facture.montantTotal) : paye,
+      paye,
       signePar: facture.signeParNom ?? undefined,
       // Force génération si absent
       codeVerification: facture.codeVerification || undefined,

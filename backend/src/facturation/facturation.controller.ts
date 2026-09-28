@@ -5,6 +5,7 @@ import {
   ApiPropertyOptional,
   ApiTags,
 } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import { IsEnum, IsNumber, IsOptional, IsString, Min, MinLength } from 'class-validator';
 import { MethodePaiement } from '@prisma/client';
 import type { Response } from 'express';
@@ -177,6 +178,7 @@ export class FacturationController {
   }
 
   @Public()
+  @Throttle({ default: { limit: 20, ttl: 60_000 } })
   @Get('verifier/:code')
   async verifier(
     @Param('code') code: string,
@@ -194,7 +196,12 @@ export class FacturationController {
 
     try {
       const data = await this.facturation.verifierParCode(code);
-      return res.json(data);
+      return res.json({
+        valide: true,
+        numero: data.numero,
+        type: data.type,
+        codeVerification: data.codeVerification,
+      });
     } catch {
       return res.status(404).json({
         message: 'Code de vérification invalide',
@@ -205,12 +212,14 @@ export class FacturationController {
   }
 
   @Public()
+  @Throttle({ default: { limit: 15, ttl: 60_000 } })
   @Post('signer/:token')
   signer(@Param('token') token: string, @Body() dto: SignerDto) {
     return this.facturation.signerParToken(token, dto.nom);
   }
 
   @Public()
+  @Throttle({ default: { limit: 30, ttl: 60_000 } })
   @Get('signer/:token')
   signerInfo(@Param('token') token: string) {
     return this.facturation.infoSignature(token);

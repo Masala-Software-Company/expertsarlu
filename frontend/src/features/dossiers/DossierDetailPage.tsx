@@ -66,10 +66,11 @@ export function DossierDetailPage() {
     user?.role === 'ASSISTANT_MANAGER' ||
     user?.role === 'SUPPORT_CLIENT';
 
-  const { data: dossier, isLoading } = useQuery({
+  const { data: dossier, isLoading, isError, error, refetch } = useQuery({
     queryKey: ['dossier', id],
     queryFn: async () => (await api.get(`/dossiers/${id}`)).data,
     enabled: !!id,
+    retry: 1,
   });
 
   useEffect(() => {
@@ -98,7 +99,10 @@ export function DossierDetailPage() {
     onSuccess: (res) => {
       toast.success(res.message ?? 'Déplacé vers la corbeille');
       setConfirmDelete(false);
+      window.location.assign('/dossiers');
     },
+    onError: (e: { response?: { data?: { message?: string } } }) =>
+      toast.error(e.response?.data?.message ?? 'Suppression impossible'),
   });
 
   const unlockReq = useMutation({
@@ -249,8 +253,28 @@ export function DossierDetailPage() {
     return all.filter((t) => !t.hide);
   }, [canFinance, canFactu, canLogistique, canComms, canPostRetour]);
 
-  if (isLoading || !dossier) {
+  if (isLoading) {
     return <div className="animate-pulse h-40 rounded-2xl bg-surface shadow-soft" />;
+  }
+
+  if (isError || !dossier) {
+    const msg =
+      (error as { response?: { data?: { message?: string } } })?.response?.data?.message ||
+      'Impossible de charger ce dossier.';
+    return (
+      <div className="rounded-2xl border border-danger/20 bg-surface p-8 text-center shadow-soft">
+        <p className="text-lg font-bold text-ink">Dossier indisponible</p>
+        <p className="mt-2 text-sm text-muted">{msg}</p>
+        <div className="mt-5 flex justify-center gap-2">
+          <Button variant="secondary" onClick={() => void refetch()}>
+            Réessayer
+          </Button>
+          <Link to="/dossiers">
+            <Button>Retour aux dossiers</Button>
+          </Link>
+        </div>
+      </div>
+    );
   }
 
   const locked =

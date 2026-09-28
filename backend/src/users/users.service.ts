@@ -309,23 +309,25 @@ export class UsersService {
     if (id === actor.id) {
       throw new BadRequestException('Vous ne pouvez pas supprimer votre propre compte');
     }
-    const user = await this.prisma.user.findUnique({ where: { id } });
-    if (!user) throw new NotFoundException('Utilisateur introuvable');
 
-    if (user.role === 'SUPER_ADMIN') {
-      const count = await this.prisma.user.count({
-        where: { role: 'SUPER_ADMIN', actif: true },
-      });
-      if (count <= 1 && user.actif) {
-        throw new BadRequestException(
-          'Impossible de supprimer le dernier Super Admin actif',
-        );
-      }
-    }
-
+    let photoRef: string | null = null;
     try {
-      await this.prisma.$transaction(async (tx) => {
-        // Réassigner / détacher les FK obligatoires avant suppression
+      photoRef = await this.prisma.$transaction(async (tx) => {
+        const user = await tx.user.findUnique({ where: { id } });
+        if (!user) throw new NotFoundException('Utilisateur introuvable');
+
+        if (user.role === 'SUPER_ADMIN' && user.actif) {
+          const count = await tx.user.count({
+            where: { role: 'SUPER_ADMIN', actif: true },
+          });
+          if (count <= 1) {
+            throw new BadRequestException(
+              'Impossible de supprimer le dernier Super Admin actif',
+            );
+          }
+        }
+
+        // Réassigner / détacher les FK avant suppression hard
         await tx.dossier.updateMany({
           where: { creeParId: id },
           data: { creeParId: actor.id },
@@ -384,22 +386,29 @@ export class UsersService {
         });
         await tx.notification.deleteMany({ where: { userId: id } });
         await tx.refreshToken.deleteMany({ where: { userId: id } });
-
-        if (user.photoProfil) {
-          try {
-            await this.storage.remove(user.photoProfil);
-          } catch {
-            /* ignore storage */
-          }
-        }
-
         await tx.user.delete({ where: { id } });
+        return user.photoProfil;
       });
     } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e);
-      throw new BadRequestException(
-        `Impossible de supprimer ce membre (données liées). Désactivez-le plutôt. ${msg.slice(0, 120)}`,
+      if (
+        e instanceof BadRequestException ||
+        e instanceof NotFoundException ||
+        e instanceof ForbiddenException ||
+        e instanceof ConflictException
+      ) {
+        throw e;
+      }
+      throw new ConflictException(
+        'Impossible de supprimer ce membre (données liées). Désactivez-le plutôt via « Inactif ».',
       );
+    }
+
+    if (photoRef) {
+      try {
+        await this.storage.remove(photoRef);
+      } catch {
+        /* avatar orphelin possible — non bloquant */
+      }
     }
 
     return { ok: true, id };

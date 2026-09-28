@@ -66,20 +66,24 @@ export class AuditInterceptor implements NestInterceptor {
       tap({
         next: (result) => {
           const resultObj = result as { id?: string; numero?: string } | null;
-          void this.audit.log({
-            userId: user?.id,
-            action: METHOD_ACTION[method] ?? 'UPDATE',
-            tableCible: module,
-            recordId: recordId ?? resultObj?.id,
-            nouvelleValeur: {
-              path: url,
-              durationMs: Date.now() - started,
-              numero: resultObj?.numero,
-              resultId: resultObj?.id,
-            },
-            ip: req.ip,
-            userAgent: req.headers['user-agent'],
-          });
+          void this.audit
+            .log({
+              userId: user?.id,
+              action: METHOD_ACTION[method] ?? 'UPDATE',
+              tableCible: module,
+              recordId: recordId ?? resultObj?.id,
+              nouvelleValeur: {
+                path: url,
+                durationMs: Date.now() - started,
+                numero: resultObj?.numero,
+                resultId: resultObj?.id,
+              },
+              ip: req.ip,
+              userAgent: req.headers['user-agent'],
+            })
+            .catch(() => {
+              /* ne jamais faire échouer la requête métier */
+            });
         },
       }),
     );

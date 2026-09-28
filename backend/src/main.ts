@@ -16,7 +16,6 @@ async function bootstrap() {
     'https://patient.expert-evac.com',
     'https://form.expert-evac.com',
     'https://verify.expert-evac.com',
-    'https://patient-form-gold.vercel.app',
   ];
   const envOrigins = (process.env.CORS_ORIGINS ?? '')
     .split(',')
@@ -70,13 +69,19 @@ async function bootstrap() {
     .setVersion(process.env.APP_VERSION ?? '1.0.0')
     .addBearerAuth()
     .build();
-  const document = SwaggerModule.createDocument(app, swagger);
-  SwaggerModule.setup('api/docs', app, document);
+  const enableSwagger =
+    process.env.ENABLE_SWAGGER === 'true' || process.env.NODE_ENV !== 'production';
+  if (enableSwagger) {
+    const document = SwaggerModule.createDocument(app, swagger);
+    SwaggerModule.setup('api/docs', app, document);
+  }
 
   const port = Number(process.env.PORT ?? 3000);
   await app.listen(port);
   // eslint-disable-next-line no-console
-  console.log(`eXpert API listening on :${port} — docs at /api/docs`);
+  console.log(
+    `eXpert API listening on :${port}${enableSwagger ? ' — docs at /api/docs' : ''}`,
+  );
 }
 
 bootstrap();

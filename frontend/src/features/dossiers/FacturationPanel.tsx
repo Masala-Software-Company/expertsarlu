@@ -271,7 +271,7 @@ export function FacturationPanel({
       emisLe: refreshed.creeLe ?? f.creeLe,
       lignes: buildLignes(refreshed),
       total: Number(refreshed.montantTotal),
-      paye: refreshed.type === 'FACTURE' ? Number(refreshed.montantTotal) : paye,
+      paye,
       devise: refreshed.devise,
     });
   };

@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Get,
@@ -79,7 +80,10 @@ export class PreInscriptionsController {
     try {
       payload = typeof payloadRaw === 'string' ? JSON.parse(payloadRaw) : payloadRaw;
     } catch {
-      payload = {} as PreInscriptionPayload;
+      throw new BadRequestException('Payload JSON invalide');
+    }
+    if (!payload || typeof payload !== 'object') {
+      throw new BadRequestException('Payload JSON invalide');
     }
     return this.service.soumettrePublic(
       payload,

@@ -148,12 +148,26 @@ export function UsersPage() {
     },
   });
 
+  const apiErrorMessage = (err: {
+    response?: { data?: { message?: string | string[] }; status?: number };
+  }) => {
+    const msg = err.response?.data?.message;
+    if (Array.isArray(msg)) return msg.join(', ');
+    if (typeof msg === 'string' && msg.trim()) return msg;
+    return err.response?.status
+      ? `Erreur ${err.response.status}`
+      : 'Action impossible — API injoignable';
+  };
+
   const setActif = useMutation({
     mutationFn: async ({ id, actif }: { id: string; actif: boolean }) =>
       (await api.patch(`/users/${id}/actif`, { actif })).data,
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ['users'] });
       toast.success('Statut mis à jour');
+    },
+    onError: (err: { response?: { data?: { message?: string | string[] }; status?: number } }) => {
+      toast.error(apiErrorMessage(err));
     },
   });
 
@@ -165,8 +179,8 @@ export function UsersPage() {
       setConfirmDelete(false);
       toast.success('Membre retiré');
     },
-    onError: (err: { response?: { data?: { message?: string } } }) => {
-      toast.error(err.response?.data?.message || 'Suppression refusée');
+    onError: (err: { response?: { data?: { message?: string | string[] }; status?: number } }) => {
+      toast.error(apiErrorMessage(err));
     },
   });
 
@@ -438,7 +452,9 @@ export function UsersPage() {
             <p className="text-sm text-muted">
               Vous êtes sur le point de retirer{' '}
               <span className="font-semibold text-ink">{selected.nom}</span> (
-              {selected.email}). Cette action est définitive.
+              {selected.email}). Les dossiers, factures et documents liés seront
+              réassignés à votre compte. Préférez « Inactif » si vous voulez seulement
+              couper l’accès.
             </p>
             <div className="mt-5 flex gap-2">
               <Button

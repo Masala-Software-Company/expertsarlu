@@ -280,14 +280,13 @@ export class PdfService {
             .stroke();
         }
 
-        // Totals
+        // Totals — payé = somme réelle des paiements (jamais forcé au total)
         y += 12;
-        const paye =
-          input.paye ?? (isFacture ? Number(input.total) : 0);
-        const reste = Math.max(0, Number(input.total) - Number(paye));
+        const paye = Number(input.paye ?? 0);
+        const reste = Math.max(0, Number(input.total) - paye);
         const totals: [string, number][] = [
           ['Total', Number(input.total)],
-          ['Payé', Number(paye)],
+          ['Payé', paye],
           ['Reste', reste],
         ];
         for (const [label, amount] of totals) {

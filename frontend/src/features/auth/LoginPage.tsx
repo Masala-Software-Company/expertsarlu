@@ -20,7 +20,6 @@ type Form = z.infer<typeof schema>;
 export function LoginPage() {
   const navigate = useNavigate();
   const setSession = useAuthStore((s) => s.setSession);
-  const setUser = useAuthStore((s) => s.setUser);
   const [ready, setReady] = useState(false);
   const {
     register,
@@ -37,18 +36,29 @@ export function LoginPage() {
   }, []);
 
   const onSubmit = handleSubmit(async (values) => {
+    const clear = useAuthStore.getState().logout;
     try {
       const { data } = await api.post('/auth/login', values);
-      setSession(data.user, data.accessToken, data.refreshToken);
-      const me = await api.get('/auth/me');
-      setUser({
-        ...data.user,
-        nom: me.data.nom,
-        photoProfil: me.data.photoProfil,
-        permissions: me.data.permissions,
-      });
-      toast.success(`Bienvenue, ${me.data.nom?.split(/\s+/)[0] || data.user.nom}`);
-      navigate('/');
+      try {
+        const me = await api.get('/auth/me', {
+          headers: { Authorization: `Bearer ${data.accessToken}` },
+        });
+        setSession(
+          {
+            ...data.user,
+            nom: me.data.nom,
+            photoProfil: me.data.photoProfil,
+            permissions: me.data.permissions ?? [],
+          },
+          data.accessToken,
+          data.refreshToken,
+        );
+        toast.success(`Bienvenue, ${me.data.nom?.split(/\s+/)[0] || data.user.nom}`);
+        navigate('/');
+      } catch {
+        clear();
+        toast.error('Connexion partielle — réessayez (profil indisponible).');
+      }
     } catch (err: unknown) {
       const ax = err as {
         response?: { status?: number; data?: { message?: string } };

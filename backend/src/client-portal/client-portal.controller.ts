@@ -12,6 +12,7 @@ import {
 } from '@nestjs/common';
 import { FileFieldsInterceptor } from '@nestjs/platform-express';
 import { ApiBody, ApiConsumes, ApiProperty, ApiPropertyOptional, ApiTags } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import {
   IsEmail,
   IsEnum,
@@ -20,11 +21,33 @@ import {
   MinLength,
 } from 'class-validator';
 import type { Response } from 'express';
+import { memoryStorage } from 'multer';
 import { Priorite, TypeClient } from '@prisma/client';
 import { Public } from '../auth/decorators';
 import { ClientPortalService } from './client-portal.service';
 import { DossiersService } from '../dossiers/dossiers.service';
 import { StorageService } from '../storage/storage.service';
+
+const IMAGE_MIME = new Set(['image/jpeg', 'image/jpg', 'image/png', 'image/webp']);
+const DOC_MIME = new Set([
+  ...IMAGE_MIME,
+  'application/pdf',
+]);
+
+function assertUpload(
+  file: Express.Multer.File | undefined,
+  label: string,
+  allow: Set<string>,
+) {
+  if (!file) return;
+  if (!file.buffer?.length) {
+    throw new BadRequestException(`${label} vide`);
+  }
+  const mime = (file.mimetype || '').toLowerCase();
+  if (!allow.has(mime)) {
+    throw new BadRequestException(`${label} : type de fichier non autorisé`);
+  }
+}
 
 class ClientInscriptionDto {
   @ApiProperty()
@@ -103,12 +126,14 @@ export class ClientPortalController {
   ) {}
 
   @Public()
+  @Throttle({ default: { limit: 30, ttl: 60_000 } })
   @Get('suivi/:token')
   suivi(@Param('token') token: string) {
     return this.dossiers.getBySuiviToken(token);
   }
 
   @Public()
+  @Throttle({ default: { limit: 30, ttl: 60_000 } })
   @Get('suivi/:token/photo')
   async suiviPhoto(@Param('token') token: string, @Res() res: Response) {
     const ref = await this.dossiers.getSuiviPhoto(token);
@@ -122,11 +147,12 @@ export class ClientPortalController {
         ? 'image/webp'
         : 'image/jpeg';
     res.setHeader('Content-Type', mime);
-    res.setHeader('Cache-Control', 'public, max-age=300');
+    res.setHeader('Cache-Control', 'private, no-store');
     opened.stream.pipe(res);
   }
 
   @Public()
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
   @Post('inscription')
   @ApiConsumes('multipart/form-data')
   @ApiBody({
@@ -154,11 +180,17 @@ export class ClientPortalController {
     },
   })
   @UseInterceptors(
-    FileFieldsInterceptor([
-      { name: 'photo', maxCount: 1 },
-      { name: 'passeport', maxCount: 1 },
-      { name: 'documentMedical', maxCount: 1 },
-    ]),
+    FileFieldsInterceptor(
+      [
+        { name: 'photo', maxCount: 1 },
+        { name: 'passeport', maxCount: 1 },
+        { name: 'documentMedical', maxCount: 1 },
+      ],
+      {
+        storage: memoryStorage(),
+        limits: { fileSize: 10 * 1024 * 1024, files: 3 },
+      },
+    ),
   )
   inscription(
     @Body() dto: ClientInscriptionDto,
@@ -172,6 +204,9 @@ export class ClientPortalController {
     if (!dto.nom?.trim() || !dto.prenom?.trim()) {
       throw new BadRequestException('Nom et prénom requis');
     }
+    assertUpload(files?.photo?.[0], 'Photo', IMAGE_MIME);
+    assertUpload(files?.passeport?.[0], 'Passeport', DOC_MIME);
+    assertUpload(files?.documentMedical?.[0], 'Document médical', DOC_MIME);
     return this.portal.inscrire(dto, {
       photo: files?.photo?.[0],
       passeport: files?.passeport?.[0],

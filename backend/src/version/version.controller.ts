@@ -68,37 +68,7 @@ export class VersionController {
     const changelog =
       'Mise à jour eXpert 1.0.7 — protocole RDV, nouveaux patients, dossiers AM, ouverture liens, suppression membres.';
 
-    if (this.isNewer(version, dbVersion) || !row?.actif) {
-      await this.prisma.appVersion.updateMany({ data: { actif: false } });
-      await this.prisma.appVersion.upsert({
-        where: { version },
-        create: {
-          version,
-          changelog,
-          downloadUrlMac: stableMac,
-          downloadUrlWin: stableWin,
-          driveUrl: pageUrl,
-          actif: true,
-        },
-        update: {
-          actif: true,
-          downloadUrlMac: stableMac,
-          downloadUrlWin: stableWin,
-          changelog,
-        },
-      });
-    } else if (row) {
-      if (
-        row.downloadUrlMac !== stableMac ||
-        row.downloadUrlWin !== stableWin
-      ) {
-        await this.prisma.appVersion.update({
-          where: { id: row.id },
-          data: { downloadUrlMac: stableMac, downloadUrlWin: stableWin, changelog },
-        });
-      }
-    }
-
+    // Lecture seule publique — pas d’écriture DB depuis un GET anonyme
     return {
       version,
       changelog,

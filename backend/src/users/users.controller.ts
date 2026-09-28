@@ -122,7 +122,14 @@ export class UsersController {
   }
 
   @Get(':id/photo')
-  async photo(@Param('id') id: string, @Res() res: Response) {
+  async photo(
+    @Param('id') id: string,
+    @CurrentUser() user: AuthUser,
+    @Res() res: Response,
+  ) {
+    if (user.id !== id && user.role !== 'SUPER_ADMIN') {
+      throw new NotFoundException('Photo introuvable');
+    }
     const meta = await this.users.getPhoto(id);
     if (!meta) throw new NotFoundException('Photo introuvable');
     res.setHeader('Content-Type', meta.mime);
