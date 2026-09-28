@@ -144,15 +144,20 @@ export class StorageService {
 
     if (this.isS3Ref(ref)) {
       if (!this.client || !this.bucket) return null;
-      const out = await this.client.send(
-        new GetObjectCommand({
-          Bucket: this.bucket,
-          Key: this.keyFromRef(ref),
-        }),
-      );
-      if (!out.Body) return null;
-      const stream = out.Body as Readable;
-      return { stream, contentType: out.ContentType };
+      try {
+        const out = await this.client.send(
+          new GetObjectCommand({
+            Bucket: this.bucket,
+            Key: this.keyFromRef(ref),
+          }),
+        );
+        if (!out.Body) return null;
+        const stream = out.Body as Readable;
+        return { stream, contentType: out.ContentType };
+      } catch (err) {
+        this.log.warn(`S3 open failed for ${ref}: ${String(err)}`);
+        return null;
+      }
     }
 
     if (!existsSync(ref)) return null;
