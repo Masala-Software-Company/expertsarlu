@@ -58,15 +58,15 @@ export class VersionController {
     const pageUrl =
       row?.driveUrl || this.config.get('DRIVE_DOWNLOAD_URL') || undefined;
 
-    const configVersion = this.config.get<string>('APP_VERSION', '1.0.7') ?? '1.0.7';
-    const FORCE_MIN = '1.0.7';
+    const configVersion = this.config.get<string>('APP_VERSION', '1.0.8') ?? '1.0.8';
+    const FORCE_MIN = '1.0.8';
     const dbVersion = row?.version ?? '0.0.0';
     let version = dbVersion;
     if (this.isNewer(configVersion, version)) version = configVersion;
     if (this.isNewer(FORCE_MIN, version)) version = FORCE_MIN;
 
     const changelog =
-      'Mise à jour eXpert 1.0.7 — protocole RDV, nouveaux patients, dossiers AM, ouverture liens, suppression membres.';
+      'Mise à jour eXpert 1.0.8 — suppression équipe, sécurité renforcée, corrections facturation et dossiers.';
 
     // Lecture seule publique — pas d’écriture DB depuis un GET anonyme
     return {

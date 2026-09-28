@@ -1,6 +1,6 @@
 [package]
 name = "expert"
-version = "1.0.7"
+version = "1.0.8"
 description = "eXpert SARLU — Bureau de Coordination Médicale Internationale"
 authors = ["eXpert SARLU"]
 edition = "2021"
