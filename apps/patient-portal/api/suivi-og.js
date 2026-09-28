@@ -1,15 +1,22 @@
 /**
- * Injecte les meta Open Graph pour /suivi/:token
- * (WhatsApp / Facebook / Slack lisent le HTML serveur, pas le React).
+ * Meta Open Graph pour /suivi/:token (bots WhatsApp / Facebook / Slack).
+ * Les navigateurs humains ne passent PAS ici (voir vercel.json) —
+ * ce fichier ne doit jamais faire échouer le partage ni bloquer la SPA.
  */
-const fs = require('fs');
-const path = require('path');
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const API_BASE = (
   process.env.VITE_API_URL ||
   process.env.API_URL ||
   'https://expertsarlu-production.up.railway.app/api'
 ).replace(/\/$/, '');
+
+const FETCH_MS = 2_500;
+const PHOTO_MS = 1_500;
 
 function escapeHtml(value) {
   return String(value ?? '')
@@ -20,20 +27,60 @@ function escapeHtml(value) {
     .replace(/'/g, '&#39;');
 }
 
+function withTimeout(ms) {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), ms);
+  return { signal: ctrl.signal, clear: () => clearTimeout(timer) };
+}
+
+async function fetchJson(url, ms = FETCH_MS) {
+  const t = withTimeout(ms);
+  try {
+    const res = await fetch(url, {
+      signal: t.signal,
+      headers: { 'User-Agent': 'eXpert-OG/1.0', Accept: 'application/json' },
+    });
+    if (!res.ok) return null;
+    return await res.json();
+  } catch {
+    return null;
+  } finally {
+    t.clear();
+  }
+}
+
 function readIndexHtml() {
   const candidates = [
     path.join(process.cwd(), 'dist', 'index.html'),
     path.join(process.cwd(), 'index.html'),
     path.join(__dirname, '..', 'dist', 'index.html'),
+    path.join(__dirname, '_spa.html'),
   ];
   for (const file of candidates) {
     try {
-      return fs.readFileSync(file, 'utf8');
+      const html = fs.readFileSync(file, 'utf8');
+      if (html && html.includes('<div id="root"')) return html;
     } catch {
       /* try next */
     }
   }
   return null;
+}
+
+function spaFallback(origin) {
+  return `<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Carte d’assistance — eXpert SARLU</title>
+    <meta http-equiv="refresh" content="0;url=${escapeHtml(origin)}" />
+  </head>
+  <body>
+    <p><a href="${escapeHtml(origin)}">Ouvrir le portail patient</a></p>
+    <script>location.replace(${JSON.stringify(origin)})</script>
+  </body>
+</html>`;
 }
 
 function readPngSize(buf) {
@@ -55,78 +102,37 @@ function readJpegSize(buf) {
       return { h: buf.readUInt16BE(i + 5), w: buf.readUInt16BE(i + 7) };
     }
     const len = buf.readUInt16BE(i + 2);
+    if (len < 2) break;
     i += 2 + len;
   }
   return null;
 }
 
 async function isPortraitPhoto(photoUrl) {
+  const t = withTimeout(PHOTO_MS);
   try {
     const res = await fetch(photoUrl, {
+      signal: t.signal,
       headers: { 'User-Agent': 'eXpert-OG/1.0', Range: 'bytes=0-65535' },
     });
     if (!res.ok && res.status !== 206) return false;
     const buf = Buffer.from(await res.arrayBuffer());
     const size = readPngSize(buf) || readJpegSize(buf);
-    if (!size || !size.h) return false;
+    if (!size?.h) return false;
     return size.w / size.h <= 1.45;
   } catch {
     return false;
+  } finally {
+    t.clear();
   }
 }
 
-module.exports = async function handler(req, res) {
-  const token = String(req.query?.token || '').trim();
-  const host = req.headers['x-forwarded-host'] || req.headers.host || 'patient.expert-evac.com';
-  const proto = (req.headers['x-forwarded-proto'] || 'https').split(',')[0].trim();
-  const origin = `${proto}://${host}`;
-  const pageUrl = token ? `${origin}/suivi/${encodeURIComponent(token)}` : origin;
-
-  let title = 'Carte d’assistance — eXpert SARLU';
-  let description =
-    'Suivi de prise en charge médicale · Évacuation & mobilité internationale.';
-  let image = `${origin}/apple-touch-icon.png`;
-  let imageAlt = 'eXpert SARLU';
-
-  if (token) {
-    try {
-      const response = await fetch(`${API_BASE}/client/suivi/${encodeURIComponent(token)}`, {
-        headers: { 'User-Agent': 'eXpert-OG/1.0', Accept: 'application/json' },
-      });
-      if (response.ok) {
-        const data = await response.json();
-        const name = data.patient
-          ? `${data.patient.prenom || ''} ${data.patient.nom || ''}`.trim()
-          : 'Patient';
-        const numero = data.numero || '';
-        title = numero
-          ? `Carte d’assistance — ${name} · ${numero}`
-          : `Carte d’assistance — ${name}`;
-        description = numero
-          ? `Suivi de dossier médical ${numero} — carte d’assistance eXpert SARLU.`
-          : 'Suivi de dossier médical — carte d’assistance eXpert SARLU.';
-        imageAlt = name || 'Patient';
-        if (data.patient?.hasPhoto) {
-          const photoUrl = `${API_BASE}/client/suivi/${encodeURIComponent(token)}/photo`;
-          if (await isPortraitPhoto(photoUrl)) {
-            image = photoUrl;
-          }
-        }
-      }
-    } catch {
-      /* keep defaults */
-    }
-  }
-
-  let html = readIndexHtml();
-  if (!html) {
-    html = `<!doctype html><html lang="fr"><head><meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" /></head><body><div id="root"></div></body></html>`;
-  }
-
-  html = html.replace(/<title>[\s\S]*?<\/title>/i, '');
-  html = html.replace(/<meta\s+name=["']description["'][^>]*>/gi, '');
-  html = html.replace(/<meta\s+property=["']og:[^"']+["'][^>]*>/gi, '');
-  html = html.replace(/<meta\s+name=["']twitter:[^"']+["'][^>]*>/gi, '');
+function injectMeta(html, { title, description, pageUrl, image, imageAlt }) {
+  let out = html
+    .replace(/<title>[\s\S]*?<\/title>/i, '')
+    .replace(/<meta\s+name=["']description["'][^>]*>/gi, '')
+    .replace(/<meta\s+property=["']og:[^"']+["'][^>]*>/gi, '')
+    .replace(/<meta\s+name=["']twitter:[^"']+["'][^>]*>/gi, '');
 
   const tags = `
     <title>${escapeHtml(title)}</title>
@@ -145,13 +151,80 @@ module.exports = async function handler(req, res) {
     <meta name="twitter:image" content="${escapeHtml(image)}" />
   `;
 
-  if (html.includes('</head>')) {
-    html = html.replace('</head>', `${tags}\n  </head>`);
-  } else {
-    html = tags + html;
+  if (out.includes('</head>')) {
+    return out.replace('</head>', `${tags}\n  </head>`);
   }
+  return tags + out;
+}
 
+function sendHtml(res, html, status = 200) {
+  res.statusCode = status;
   res.setHeader('Content-Type', 'text/html; charset=utf-8');
   res.setHeader('Cache-Control', 'public, s-maxage=60, stale-while-revalidate=300');
-  res.status(200).send(html);
-};
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.end(html);
+}
+
+export default async function handler(req, res) {
+  try {
+    const rawToken =
+      (typeof req.query?.token === 'string' && req.query.token) ||
+      (Array.isArray(req.query?.token) ? req.query.token[0] : '') ||
+      '';
+    const token = String(rawToken).trim().slice(0, 128);
+    const hostHeader = req.headers['x-forwarded-host'] || req.headers.host || 'patient.expert-evac.com';
+    const host = String(hostHeader).split(',')[0].trim();
+    const proto = String(req.headers['x-forwarded-proto'] || 'https')
+      .split(',')[0]
+      .trim();
+    const origin = `${proto}://${host}`;
+    const pageUrl = token ? `${origin}/suivi/${encodeURIComponent(token)}` : origin;
+
+    let title = 'Carte d’assistance — eXpert SARLU';
+    let description =
+      'Suivi de prise en charge médicale · Évacuation & mobilité internationale.';
+    let image = `${origin}/apple-touch-icon.png`;
+    let imageAlt = 'eXpert SARLU';
+
+    if (token) {
+      const data = await fetchJson(`${API_BASE}/client/suivi/${encodeURIComponent(token)}`);
+      if (data) {
+        const name = data.patient
+          ? `${data.patient.prenom || ''} ${data.patient.nom || ''}`.trim()
+          : 'Patient';
+        const numero = data.numero || '';
+        title = numero
+          ? `Carte d’assistance — ${name} · ${numero}`
+          : `Carte d’assistance — ${name}`;
+        description = numero
+          ? `Suivi de dossier médical ${numero} — carte d’assistance eXpert SARLU.`
+          : 'Suivi de dossier médical — carte d’assistance eXpert SARLU.';
+        imageAlt = name || 'Patient';
+        if (data.patient?.hasPhoto) {
+          const photoUrl = `${API_BASE}/client/suivi/${encodeURIComponent(token)}/photo`;
+          if (await isPortraitPhoto(photoUrl)) {
+            image = photoUrl;
+          }
+        }
+      }
+    }
+
+    const baseHtml = readIndexHtml() || spaFallback(pageUrl);
+    const html = injectMeta(baseHtml, { title, description, pageUrl, image, imageAlt });
+    sendHtml(res, html, 200);
+  } catch (err) {
+    console.error('[suivi-og]', err?.message || err);
+    try {
+      const host = String(req.headers['x-forwarded-host'] || req.headers.host || 'patient.expert-evac.com')
+        .split(',')[0]
+        .trim();
+      const proto = String(req.headers['x-forwarded-proto'] || 'https').split(',')[0].trim();
+      const origin = `${proto}://${host}`;
+      sendHtml(res, spaFallback(origin), 200);
+    } catch {
+      res.statusCode = 200;
+      res.setHeader('Content-Type', 'text/html; charset=utf-8');
+      res.end('<!doctype html><html><body><p>eXpert SARLU</p></body></html>');
+    }
+  }
+}

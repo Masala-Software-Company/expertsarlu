@@ -61,13 +61,26 @@ export function SuiviPage({ token }: { token: string }) {
     setError(null);
     void (async () => {
       try {
-        const { data: payload } = await api.get<SuiviData>(`/client/suivi/${token}`);
+        const { data: payload } = await api.get<SuiviData>(`/client/suivi/${encodeURIComponent(token)}`);
         if (!cancelled) setData(payload);
-      } catch (e) {
+      } catch (e: unknown) {
         if (!cancelled) {
-          const msg =
-            (e as { response?: { data?: { message?: string } } })?.response?.data?.message ||
-            'Ce suivi patient n’existe pas ou a expiré.';
+          const ax = e as {
+            code?: string;
+            message?: string;
+            response?: { status?: number; data?: { message?: string } };
+          };
+          let msg = ax.response?.data?.message;
+          if (!msg) {
+            if (ax.code === 'ERR_NETWORK' || ax.message === 'Network Error') {
+              msg =
+                'Impossible de joindre le serveur. Vérifiez votre connexion puis réessayez.';
+            } else if (ax.response?.status === 404) {
+              msg = 'Ce suivi patient n’existe pas ou a expiré.';
+            } else {
+              msg = 'Ce suivi patient n’existe pas ou a expiré.';
+            }
+          }
           setError(msg);
           setData(null);
         }
@@ -133,9 +146,24 @@ export function SuiviPage({ token }: { token: string }) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-[#071428] p-6 text-white">
         <div className="max-w-md text-center">
-          <img src={logoLight} alt="" className="mx-auto h-10" />
-          <h1 className="mt-4 text-2xl font-extrabold">Lien invalide</h1>
-          <p className="mt-2 text-white/70">{error}</p>
+          <img src={logoLight} alt="eXpert SARLU" className="mx-auto h-10" />
+          <h1 className="mt-4 text-2xl font-extrabold">Lien indisponible</h1>
+          <p className="mt-2 text-white/70">{error || 'Ce suivi patient n’existe pas ou a expiré.'}</p>
+          <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
+            <button
+              type="button"
+              className="rounded-full bg-white px-5 py-2.5 text-sm font-bold text-[#144EB9]"
+              onClick={() => window.location.reload()}
+            >
+              Réessayer
+            </button>
+            <a
+              href="/"
+              className="rounded-full border border-white/30 px-5 py-2.5 text-sm font-semibold text-white/90"
+            >
+              Accueil portail
+            </a>
+          </div>
         </div>
       </div>
     );

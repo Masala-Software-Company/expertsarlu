@@ -25,6 +25,9 @@ frontend/src-tauri/keys/*.key
 .tools/
 pnpm-lock.yaml.bak
 
+# Patient portal — HTML SPA copié pour la fonction OG Vercel
+apps/patient-portal/api/_spa.html
+
 # Document de spécifications — hors dépôt
 eXpert-SARLU-Dossier-Specifications.md
 

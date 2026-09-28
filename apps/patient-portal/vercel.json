@@ -3,8 +3,51 @@
   "outputDirectory": "dist",
   "framework": "vite",
   "installCommand": "pnpm install",
+  "functions": {
+    "api/suivi-og.js": {
+      "includeFiles": "{dist/index.html,api/_spa.html}",
+      "maxDuration": 10,
+      "memory": 256
+    }
+  },
   "rewrites": [
-    { "source": "/suivi/:token", "destination": "/api/suivi-og?token=:token" },
-    { "source": "/(.*)", "destination": "/index.html" }
+    {
+      "source": "/suivi/:token",
+      "has": [
+        {
+          "type": "header",
+          "key": "user-agent",
+          "value": "(?i).*(whatsapp|facebookexternalhit|facebot|twitterbot|linkedinbot|slackbot|telegrambot|discordbot|skypeuripreview|googlebot|bingbot|applebot|embedly|pinterest|quora link preview|redditbot|vkshare|w3c_validator|discordbot).*"
+        }
+      ],
+      "destination": "/api/suivi-og?token=:token"
+    },
+    {
+      "source": "/suivi/:token/",
+      "has": [
+        {
+          "type": "header",
+          "key": "user-agent",
+          "value": "(?i).*(whatsapp|facebookexternalhit|facebot|twitterbot|linkedinbot|slackbot|telegrambot|discordbot|skypeuripreview|googlebot|bingbot|applebot|embedly|pinterest|quora link preview|redditbot|vkshare|w3c_validator|discordbot).*"
+        }
+      ],
+      "destination": "/api/suivi-og?token=:token"
+    },
+    { "source": "/((?!api/).*)", "destination": "/index.html" }
+  ],
+  "headers": [
+    {
+      "source": "/assets/(.*)",
+      "headers": [
+        { "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }
+      ]
+    },
+    {
+      "source": "/(.*)",
+      "headers": [
+        { "key": "X-Content-Type-Options", "value": "nosniff" },
+        { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" }
+      ]
+    }
   ]
 }
