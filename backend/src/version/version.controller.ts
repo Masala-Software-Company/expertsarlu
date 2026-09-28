@@ -49,7 +49,9 @@ export class VersionController {
     });
 
     const api = this.publicApiBase();
-    const stableMac = `${api}/version/download/mac`;
+    const githubMacDmg =
+      'https://raw.githubusercontent.com/Masala-Software-Company/expertsarlu/release-assets-108/assets/eXpert_1.0.8_macOS.dmg';
+    const stableMac = githubMacDmg;
     const stableWin = `${api}/version/download/win`;
 
     const downloadUrlMac = stableMac;
